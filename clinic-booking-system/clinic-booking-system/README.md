@@ -31,7 +31,7 @@ The goal is simple: **no missed inquiries, faster replies, and fewer no-shows â€
    - If theyâ€™re interested, it starts a short booking flow
 
 3. **Lead & booking capture**  
-   The workflow asks for:
+   The workflow record :
    - Full name  
    - Phone number (if different)  
    - Channel they came from  
