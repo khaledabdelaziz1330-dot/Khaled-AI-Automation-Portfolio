@@ -23,7 +23,7 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 
 ### 1. Clinic Booking System  
 **Automated WhatsApp booking for dental & medical clinics**  
-`n8n · OpenAI · WhatsApp · Google Sheets · Google Calendar`
+`n8n . OpenAI . WhatsApp . Instagram . Messenger . telegram . Google Sheets . Google Calendar`
 
 - Replaces manual receptionist chat with an AI assistant.
 - Handles FAQs, booking, rescheduling and reminder messages.
@@ -36,7 +36,7 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 
 ### 2. Gym Lead Management  
 **Lead capture & trial booking automation for gyms and fitness centers**  
-`n8n · OpenAI · WhatsApp · Google Sheets · Google Calendar`
+`n8n . OpenAI . WhatsApp . Instagram . Messenger . telegram . Google Sheets . Google Calendar`
 
 - Captures all WhatsApp inquiries and creates a lead pipeline (Hot / Warm / Trial booked).
 - Automates trial booking and follow-up messages.
@@ -49,7 +49,7 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 
 ### 3. Beauty Center Reception Workflow  
 **Multi-service booking across WhatsApp, Instagram, and Messenger**  
-`n8n · OpenAI · WhatsApp · Instagram · Messenger · Google Sheets · Google Calendar`
+`n8n . OpenAI . WhatsApp . Instagram . Messenger . telegram . Google Sheets . Google Calendar`
 
 - Centralises messages from multiple channels into one reception workflow.
 - Suggests services, books appointments, and syncs them with Calendar.
@@ -70,8 +70,8 @@ Beyond the projects above, I design custom n8n automations for **private and fie
 
 Typical patterns:
 
-- Centralising all WhatsApp / Instagram inquiries into Google Sheets (as a simple CRM).  
-- Automatic status tracking: **New → In progress → Done → Paid**.  
+- Centralising all WhatsApp / messanger / Instagram  / telegram inquiries into Google Sheets (as a simple CRM).
+- Select an available time on Google Calendar to book the appointment.
 - Reminder and follow-up flows so no lead, job, or payment is forgotten.
 
 ---
