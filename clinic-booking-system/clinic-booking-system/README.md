@@ -2,7 +2,7 @@
 
 Automated WhatsApp booking and reception workflow for dental & medical clinics.
 
-![Clinic workflow overview](./clinic-workflow.jpg)
+clinic-booking-system/README.md
 
 ## Overview
 - Replaces manual receptionist chat with an AI assistant.
