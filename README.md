@@ -56,7 +56,8 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 - Tracks customers, preferences, and visit history in Sheets.
 - **Impact:** 3 channels unified into a single system with automated follow-ups.
 
-[View details →](./beauty-center-reception/)
+[View details →](./beauty-center-reception-workflow/)
+
 
 ---
 
