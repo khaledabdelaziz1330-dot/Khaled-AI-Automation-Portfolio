@@ -38,11 +38,11 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 **Lead capture & trial booking automation for gyms and fitness centers**  
 `n8n . OpenAI . WhatsApp . Instagram . Messenger  . Google Sheets . Google Calendar`
 
-- Captures all WhatsApp inquiries and creates a lead pipeline (Hot / Warm / Trial booked).
+- Captures all WhatsApp - messanger - instgram inquiries and creates a lead pipeline (Member / Hot / Trial booked).
 - Automates trial booking and follow-up messages.
 - Eliminates manual data entry into Sheets.
 - **Impact:** Designed to handle **150+ leads/month** with full traceability.
-
+- Automatically send gym offers to leads
 [View details →](./gym-lead-management/)
 
 ---
@@ -54,7 +54,7 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 - Centralises messages from multiple channels into one reception workflow.
 - Suggests services, books appointments, and syncs them with Calendar.
 - Tracks customers, preferences, and visit history in Sheets.
-- **Impact:** 4 channels unified into a single system with automated follow-ups.
+- **Impact:** 3 channels unified into a single system with automated follow-ups.
 
 [View details →](./beauty-center-reception/)
 
