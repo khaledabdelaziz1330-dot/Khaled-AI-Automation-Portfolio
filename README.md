@@ -43,6 +43,7 @@ BDS (Dental Surgery) → Clinic automation → Expanded to gyms, beauty centers,
 - Eliminates manual data entry into Sheets.
 - **Impact:** Designed to handle **150+ leads/month** with full traceability.
 - Automatically send gym offers to leads
+
 [View details →](./gym-lead-management/)
 
 ---
