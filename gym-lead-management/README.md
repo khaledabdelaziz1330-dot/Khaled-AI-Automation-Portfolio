@@ -1,7 +1,7 @@
 # Gym Lead Management System
 
 Multi-channel lead capture & trial booking workflow for gyms and fitness centers  
-(WhatsApp · Instagram · Facebook Messenger · Telegram)
+(WhatsApp · Instagram · Facebook Messenger  )
 
 ---
 ![gym workflow](https://github.com/user-attachments/assets/49e8001d-55ad-418e-b626-d25b90679fd8)
@@ -10,7 +10,7 @@ Multi-channel lead capture & trial booking workflow for gyms and fitness centers
 
 ## 🏋️‍♂️ What this system does
 
-This workflow turns all gym inquiries from **WhatsApp / Instagram / Messenger / Telegram** into a
+This workflow turns all gym inquiries from **WhatsApp / Instagram / Messenger** into a
 structured lead pipeline and automated trial booking system.
 
 It:
@@ -18,7 +18,7 @@ It:
 - Captures every inquiry from ads, posts, or word-of-mouth.
 - Qualifies leads (goals, experience level, preferred time).
 - Books free trials or paid first sessions.
-- Tracks each lead’s status in Google Sheets (New / Hot / Warm / Trial booked / Member).
+- Tracks each lead’s status in Google Sheets (New / Hot / Trial booked / Member).
 - Sends reminders and follow-up messages so no lead is forgotten.
 
 ---
@@ -34,7 +34,7 @@ It:
 
 3. **Lead qualification & logging**  
    - Saves all answers in **Google Sheets**  
-   - Assigns a status (New / Hot / Warm / Trial booked)  
+   - Assigns a status (New / Hot / Trial booked)  
    - This sheet becomes a simple **CRM** for the gym team.
 
 4. **Trial booking**  
