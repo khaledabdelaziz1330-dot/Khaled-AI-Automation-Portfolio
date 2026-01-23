@@ -4,6 +4,8 @@ Multi-channel lead capture & trial booking workflow for gyms and fitness centers
 (WhatsApp · Instagram · Facebook Messenger · Telegram)
 
 ---
+![Gym workflow overview](./gym-workflow.jpg)
+
 
 ## 🏋️‍♂️ What this system does
 
