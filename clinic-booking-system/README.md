@@ -5,7 +5,8 @@ Multi-channel booking and reception workflow for dental & medical clinics
 
 ---
 
-![Clinic workflow](./clinic%20workflow.jpg)
+![clinic workflow](https://github.com/user-attachments/assets/03cd2bf8-23ed-4e40-a41e-5386961e61d3)
+
 
 ## 🩺 What this system does
 
