@@ -187,11 +187,15 @@ This architecture can be reused for:
 
 ## 9. Screenshots
 
-Screenshots for this project are stored in: ./screenshots/
+Screenshots for this project are stored in ./screenshots/.
+
+> Note: All names, bookings, and data shown in these screenshots are test/demo data only and do not represent real people or real businesses. They are used just to demonstrate how the workflows and systems behave.
 
 Suggested files:
 
-- screenshots/pipelines-overview.png – GHL pipelines for leads & bookings.  
-- screenshots/calendar-bookings.png – month view of class bookings.  
-- screenshots/workflows-automation.png – main GHL workflows.  
-- screenshots/n8n-flows.png – n8n booking/logging + error trigger workflows.
+- screenshots/ghl-opportunities-pipeline.png – overview of the GHL pipeline for Wellness Club – Leads (New Lead → Hot lead → Cold lead).
+- screenshots/ghl-bookings-pipeline.png – Bookings pipeline showing Appointment confirmed / Attended / No-shows / Cancelled.
+- screenshots/calendar-class-bookings.png – month view of class bookings in the GHL calendar for the wellness club.
+- screenshots/ghl-workflows-list.png – list of all GHL workflows created for this project (confirmation, nurture, no-show, review request, etc.).
+- screenshots/ghl-confirmation-workflow.png – full view of the Appointment Confirmation + Reminders workflow.
+- screenshots/n8n-monitoring-flows.png – n8n monitoring flows for logging errors, appending logs to Sheets, and sending alerts.
