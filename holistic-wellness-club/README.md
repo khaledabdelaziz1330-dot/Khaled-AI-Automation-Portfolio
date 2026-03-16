@@ -1,201 +1,89 @@
-# Holistic Wellness Club – GHL + n8n Ecosystem 💎
+# Holistic Wellness Club – GHL + n8n Ecosystem
 
-End-to-end automation system for a wellness club offering yoga, meditation, retreats, and holistic cooking programs.  
-This project combines GoHighLevel (GHL) for the client journey and n8n as the automation “brain” and monitoring layer.
-
----
-
-## 1. Business Context & Goals
-
-Business type: Holistic wellness club (classes, retreats, and cooking workshops).
-
-Main problems we wanted to solve:
-
-- Manual handling of bookings, reminders, and rescheduling over WhatsApp.
-- Front-desk wasting time updating calendars and tracking who actually attended.
-- No proper logs or reporting on leads, bookings, no-shows, and reviews.
-
-Goals:
-
-- Centralize all bookings into one calendar & one pipeline.
-- Reduce front-desk manual work on reminders & tracking by ~70%.
-- Build a system that can be monitored, debugged, and extended – not just a demo.
+End-to-end automation system for a wellness club offering yoga, meditation, retreats, and holistic cooking programs
+(GoHighLevel · n8n · WhatsApp · Google Sheets · Google Calendar)
 
 ---
 
-## 2. Tech Stack
-
-- Automation & Logic
-  - n8n (self-hosted on VPS, Docker)
-  - JavaScript expressions inside n8n nodes for data shaping & routing
-- CRM & Client Journey
-  - GoHighLevel – pipelines, workflows, calendars, forms, contacts
-- Messaging & Integrations
-  - WhatsApp API (via provider)
-  - Google Sheets – logging, reporting, and lightweight CRM
-  - Google Calendar – scheduling and resource management
+![wellness club screenshots](screenshots/photo_1_2026-02-20_08-16-52.jpg)
 
 ---
 
-## 3. High-Level Architecture
+## What This System Does
 
-1. Lead enters the system
-   - User visits the Wellness Club website (GHL site) and fills a form / booking widget.
-   - GHL creates a Contact + Opportunity and drops it into the relevant Pipeline stage.
+A comprehensive automation system that combines **GoHighLevel (GHL)** for the client journey and **n8n** as the automation brain and monitoring layer. Built for a holistic wellness club that needed to eliminate manual handling of bookings, reminders, and tracking.
 
-2. GoHighLevel handles the “visible” journey
-   - Pipelines for: New lead → Booking confirmed → Attended → No-show → Re-engagement.
-   - Workflows send:
-     - Confirmation messages
-     - Reminder emails/SMS
-     - Post-visit review requests
+**Problems solved:**
 
-3. n8n works as the “Brain & Monitor”
-   - Receives webhooks from GHL whenever:
-     - A lead is created
-     - A booking is confirmed/updated
-     - Status changes (attended / no-show / cancelled)
-   - Normalizes the payload and:
-     - Logs it into Google Sheets as a structured event
-     - Creates booking snapshots for reporting/BI
-     - Triggers additional internal automations (e.g. error alerts)
-
-4. Data & Reporting Layer
-   - Google Sheets used as:
-     - Audit log of all events
-     - Summary dashboards (by date, service type, attendance, etc.)
-   - Separate Errors sheet to track any failed calls or unexpected responses.
+- Manual handling of bookings, reminders, and rescheduling over WhatsApp
+- Front-desk wasting time updating calendars and tracking attendance
+- No proper logs or reporting on leads, bookings, no-shows, and reviews
 
 ---
 
-## 4. GoHighLevel Setup (Pipelines, Calendars, Workflows)
+## How It Works
 
-### 4.1 Pipelines
+### GoHighLevel (Client Journey)
 
-- Wellness Club – Leads
-  - Stages: New Lead, Hot Lead, Cold Lead
-  - Used for early qualification before booking.
+**Pipelines:**
+- **Wellness Club – Leads:** New Lead → Hot Lead → Cold Lead (early qualification)
+- **Holistic Services – Bookings:** Appointment confirmed → Attended → No-shows → Cancelled
 
-- Holistic Services – Bookings
-  - Stages: Appointment confirmed, Attended / feedback sent, No-shows, Cancelled
-  - Each card is linked to a specific class / session in the calendar.
+**Workflows:**
+- **Appointment Confirmation + Reminders** — confirmation email → 24-hr reminder → 2-hr reminder (email + SMS)
+- **Review Request** — 2 days after visit → review request SMS → review request email
+- **Lead Nurture / No-Show Nurture** — re-engagement sequences for people who never booked, missed appointments, or went inactive
 
-### 4.2 Calendars
+### n8n (Brain & Monitor)
 
-- Dedicated group calendar for the Wellness Club:
-  - Shows all upcoming classes and bookings in Month View.
-  - Used by staff to quickly see occupancy and availability.
+1. **Booking Event Logger** — receives webhooks from GHL on booking events, validates and normalizes fields, appends to Bookings_Log sheet, creates booking snapshots
+2. **Lead Event Logger** — parses lead source, funnel entry point, and tags, updates Leads_Log sheet, optionally notifies Slack/Discord for high-intent leads
+3. **Error Trigger & Notifications** — catches API failures, empty fields, and Sheet errors, logs to Errors sheet, sends alerts via email/Discord
 
-### 4.3 GHL Workflows (non-exhaustive)
+### Data Layer (Google Sheets)
 
-- Appointment Confirmation + Reminders
-  - Trigger: customer books an appointment.
-  - Actions:
-    - Remove from “New Lead” funnel.
-    - Update Opportunity to booking stage.
-    - Send confirmation email immediately.
-    - Send 24-hr reminder email.
-    - Send 2-hr reminder email + SMS.
-
-- Send Review Request
-  - Trigger: appointment marked as showed / attended.
-  - Wait 2 days → send review request SMS → send review request email.
-
-- Lead Nurture / Cold Lead Nurture / No-Show Nurture
-  - Conditional sequences to re-engage:
-    - People who never booked.
-    - People who missed their appointment.
-    - Former clients who went inactive.
+- **Bookings_Log** — one row per booking event (full history)
+- **Bookings_Snapshot** — one row per active booking with latest status
+- **Leads_Log** — timeline of lead creation and changes
+- **Errors** — centralized error log
+- **KPIs** — summary formulas and pivot tables for reporting
 
 ---
 
-## 5. n8n Workflows in This Project
+## Stack
 
-> All workflows are designed with logging, retries, and error paths so they can run in production.
-
-### 5.1 Booking Event Logger
-
-- Trigger: Webhook from GHL on booking/appointment events.
-- Main steps:
-  - Validate payload & normalize fields (service, date, contact, status).
-  - Append row into Bookings_Log sheet.
-- Create/refresh a “snapshot” row for that booking (latest status).
-  - If something important is missing → branch into an error path.
-
-### 5.2 Lead Event Logger
-
-- Trigger: Webhook when a new lead/opportunity is created or updated.
-- Main steps:
-  - Parse lead source, funnel entry point, and tags.
-  - Insert/update data in Leads_Log sheet.
-  - Optionally notify Slack/Discord if it’s tagged as High Intent.
-
-### 5.3 Error Trigger & Notifications
-
-- Trigger: Called from other workflows whenever:
-  - An API call fails
-  - A required field is empty
-  - A Sheet operation throws an error
-- Actions:
-  - Append a row to the Errors sheet with:
-    - Workflow name
-    - Node name
-    - Error message
-    - Raw payload (if needed)
-  - Send alert via email/Discord with a short summary + link to the log.
+| Layer | Tools |
+|---|---|
+| **CRM & Journeys** | GoHighLevel (pipelines, workflows, calendars, forms) |
+| **Orchestration** | n8n (self-hosted on VPS via Docker) |
+| **Logic** | JavaScript (data shaping & routing inside n8n) |
+| **Messaging** | WhatsApp API (via provider) |
+| **Data** | Google Sheets (logging, reporting, lightweight CRM) |
+| **Scheduling** | Google Calendar (resource management) |
+| **Alerts** | Email / Discord (error notifications) |
 
 ---
 
-## 6. Data Model (Google Sheets)
+## Impact
 
-Typical tabs used:
-
-- Bookings_Log – one row per booking event (history).
-- Bookings_Snapshot – one row per active booking with latest status.
-- Leads_Log – timeline of lead creation and changes.
-- Errors – centralized error log.
-- (Optional) KPIs – summary formulas / pivot tables for reporting.
+- Front-desk manual work on reminders & tracking reduced by **~70%**
+- Single source of truth across GHL Pipelines, Calendar bookings, and n8n logs
+- Clear visibility into which campaigns brought which leads
+- Easy tracking of attendance, no-shows, and re-engagement
+- Quick debugging using the centralized error log
 
 ---
 
-## 7. Impact & Outcomes
+## Screenshots
 
-- Designed to reduce front-desk manual work on tracking and reminders by ≈70%.
-- Provides a single source of truth across:
-  - GHL Pipelines  
-  - Calendar bookings  
-  - n8n logs & Sheets
-- Makes it easy to:
-  - See which campaigns brought which leads.
-  - Track attendance, no-shows, and re-engagement.
-  - Debug issues quickly using the error log.
+Screenshots for this project are stored in `./screenshots/`.
+
+> All names, bookings, and data shown are test/demo data only and do not represent real people or businesses.
 
 ---
 
-## 8. Re-use & Extension
+## Notes
 
-This architecture can be reused for:
-
-- Other wellness/fitness businesses (yoga studios, gyms, retreats).
-- Multi-service clinics with different calendars.
-- Any service business that needs:
-  - Multi-channel booking
-  - Structured logging
-  - Reliable reminders & review requests.
-
----
-
-## 9. Screenshots
-
-Screenshots for this project are stored in ./screenshots/.
-
-> Note: All names, bookings, and data shown in these screenshots are test/demo data only and do not represent real people or real businesses. They are used just to demonstrate how the workflows and systems behave.
-
-Suggested files:
-
-- screenshots/ghl-opportunities-pipeline.png – overview of the GHL pipeline for Wellness Club – Leads (New Lead → Hot lead → Cold lead).
-- screenshots/ghl-bookings-pipeline.png – Bookings pipeline showing Appointment confirmed / Attended / No-shows / Cancelled.
-- screenshots/calendar-class-bookings.png – month view of class bookings in the GHL calendar for the wellness club.
-- screenshots/ghl-workflows-list.png – list of all GHL workflows created for this project (confirmation, nurture, no-show, review request, etc.).
-- screenshots/ghl-confirmation-workflow.png – full view of the Appointment Confirmation + Reminders workflow.
-- screenshots/n8n-monitoring-flows.png – n8n monitoring flows for logging errors, appending logs to Sheets, and sending alerts.
+- This architecture can be reused for other wellness/fitness businesses, multi-service clinics, or any service business needing multi-channel booking with structured logging
+- All workflows are designed with logging, retries, and error paths for production use
+- The GHL + n8n combination gives both a user-friendly CRM interface and powerful backend automation
