@@ -17,20 +17,20 @@ Every workflow I build is designed with structured logging, error monitoring, re
 
 ## Featured Systems
 
-### 1. Document Automation System
+### 1. Hostzera – AI Chat Widget & Lead Automation (Current)
 
-**Stack:** n8n · OpenAI · JavaScript · Google Sheets · Google Drive · Gmail
+**Stack:** n8n · Anthropic Claude · OpenAI · Google Sheets · JavaScript · Webhooks
 
-![document automation workflow](./document-automation-system/document-automation-workflow.png)
+![hostzera chat widget](./hostzera-chat-widget/chat-widget-workflow.png)
 
-AI-assisted pipeline that transforms **construction specification PDFs** into structured Excel outputs. The LLM extracts action signals from natural-language instructions, but **all calculations are deterministic code** — no LLM math. Includes duplicate detection, quantity conservation validation, QA reporting, and full error monitoring.
+AI-driven customer support and sales assistant for **Hostzera** (web hosting platform). Retrieves structured service data from Google Sheets, processes it through a custom retrieval layer, and feeds it into an AI agent with conversation memory. Multi-language support, automatic page linking, and zero hallucination through retrieval-only responses.
 
 **Impact:**
-- Hours of manual document processing → automated pipeline runs
-- Zero calculation errors — deterministic code handles all math
-- Full audit trail with QA reports for every run
+- 24/7 instant responses — visitors get accurate answers without waiting for a human
+- Reduced support load — common questions handled automatically
+- Higher lead conversion through intelligent qualification
 
-[View details →](./document-automation-system)
+[View details →](./hostzera-chat-widget)
 
 ---
 
@@ -51,24 +51,7 @@ End-to-end pipeline: **Google Maps scraping → deduplication → email verifica
 
 ---
 
-### 3. Hostzera – AI Chat Widget & Lead Automation
-
-**Stack:** n8n · Anthropic Claude · OpenAI · Google Sheets · JavaScript · Webhooks
-
-![hostzera chat widget](./hostzera-chat-widget/chat-widget-workflow.png)
-
-AI-driven customer support and sales assistant for **Hostzera** (web hosting platform). Retrieves structured service data from Google Sheets, processes it through a custom retrieval layer, and feeds it into an AI agent with conversation memory. Multi-language support, automatic page linking, and zero hallucination through retrieval-only responses.
-
-**Impact:**
-- 24/7 instant responses — visitors get accurate answers without waiting for a human
-- Reduced support load — common questions handled automatically
-- Higher lead conversion through intelligent qualification
-
-[View details →](./hostzera-chat-widget)
-
----
-
-### 4. Clinic Booking System – AI Receptionist
+### 3. Clinic Booking System – AI Receptionist
 
 **Stack:** n8n · OpenAI · WhatsApp / Messenger / Telegram · Google Sheets · Google Calendar
 
@@ -82,6 +65,23 @@ Replaces manual receptionist chat with an AI assistant across WhatsApp, Messenge
 - Front-desk manual work reduced by **~70%**
 
 [View Loom Demo →](https://www.loom.com/share/5e571af3da7c41edb6a80c1c5604876d) | [View details →](./clinic-booking-system)
+
+---
+
+### 4. Document Automation System
+
+**Stack:** n8n · OpenAI · JavaScript · Google Sheets · Google Drive · Gmail
+
+![document automation workflow](./document-automation-system/document-automation-workflow.png)
+
+AI-assisted pipeline that transforms **construction specification PDFs** into structured Excel outputs. The LLM extracts action signals from natural-language instructions, but **all calculations are deterministic code** — no LLM math. Includes duplicate detection, quantity conservation validation, QA reporting, and full error monitoring.
+
+**Impact:**
+- Hours of manual document processing → automated pipeline runs
+- Zero calculation errors — deterministic code handles all math
+- Full audit trail with QA reports for every run
+
+[View details →](./document-automation-system)
 
 ---
 
