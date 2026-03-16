@@ -1,15 +1,17 @@
 # Document Automation System
 
-AI-assisted document processing pipeline that transforms construction specification instructions into structured Excel outputs
+AI-assisted document processing pipeline for construction specification instructions
 (PDF Parsing · AI Extraction · Deterministic Calculations · QA Reporting)
 
 ---
 
 ![document automation workflow](document-automation-workflow.png)
 
-## What this system does
+---
 
-This is an AI-assisted document processing pipeline that automates the transformation of **construction specification instructions** into structured Excel outputs.
+## What This System Does
+
+An AI-assisted document processing pipeline that automates the transformation of **construction specification instructions** into structured Excel outputs.
 
 The system ingests two inputs:
 1. A **spreadsheet** containing specification items and baseline quantities.
@@ -19,47 +21,46 @@ An LLM is used **only** to extract structured action signals (reuse, dispose, cl
 
 ---
 
-## How it works (step by step)
+## How It Works
 
 ### Phase 1: Intake & Duplicate Check
-1. **Schedule Trigger / Manual Trigger** starts the workflow.
-2. **Search files and folders** — locates new PDF documents to process.
-3. **Combine source checks** — cross-references with existing records.
-4. **Check duplicates** — prevents reprocessing of already-handled documents.
-5. **Register new PDF** — logs the document for processing.
-6. **Load existing records** — retrieves baseline data from the reference spreadsheet.
+1. **Schedule Trigger / Manual Trigger** — starts the workflow
+2. **Search files and folders** — locates new PDF documents to process
+3. **Combine source checks** — cross-references with existing records
+4. **Check duplicates** — prevents reprocessing of already-handled documents
+5. **Register new PDF** — logs the document for processing
+6. **Load existing records** — retrieves baseline data from the reference spreadsheet
 
 ### Phase 2: PDF Parsing & Rule Extraction
-1. **Download PDF** — fetches the document.
-2. **Extract PDF text** — converts PDF content to machine-readable text.
-3. **Split PDF by item** — segments the text by specification item.
-4. **AI Extract Processing** — uses an LLM to extract structured action signals from natural-language instructions (reuse, dispose, clean, package, transport).
-5. **Parse AI output** — converts AI responses into structured data.
-6. **Read input sheet** — loads the baseline quantities.
-7. **Normalize rows** — standardizes data formats.
+1. **Download PDF** — fetches the document
+2. **Extract PDF text** — converts PDF content to machine-readable text
+3. **Split PDF by item** — segments the text by specification item
+4. **AI Extract Processing** — uses an LLM to extract structured action signals from natural-language instructions
+5. **Parse AI output** — converts AI responses into structured data
+6. **Read input sheet + Normalize rows** — loads and standardizes baseline quantities
 
 ### Phase 3: Deterministic Calculation & Output
-1. **Merge** — combines AI-extracted rules with baseline data.
-2. **Join data** — links child items to parent items.
-3. **Calculate child** — computes quantities for child items.
-4. **Aggregate to parents** — rolls up child quantities to parent level.
-5. **Validate results** — checks quantity conservation and mathematical consistency.
-6. **Build final output** — structures the data for Excel export.
-7. **Write output sheet** — generates the final Excel file.
-8. **Write QA report** — produces a quality assurance report with validation results.
+1. **Merge** — combines AI-extracted rules with baseline data
+2. **Join data** — links child items to parent items
+3. **Calculate child** — computes quantities for child items
+4. **Aggregate to parents** — rolls up child quantities to parent level
+5. **Validate results** — checks quantity conservation and mathematical consistency
+6. **Build final output** — structures the data for Excel export
+7. **Write output sheet** — generates the final Excel file
+8. **Write QA report** — produces a quality assurance report with validation results
 
 ### Phase 4: Error Handling & Alerts
-- **Error Trigger** catches any failed step.
-- **Log the error** — records the failure in a dedicated error sheet.
-- **Notify the team** — sends an email alert with error details.
+- **Error Trigger** catches any failure in the pipeline
+- **Log the error** — records the failure in a dedicated error sheet
+- **Notify the team** — sends an email alert with error details
 
 ---
 
-## Workflow architecture
+## Workflow Architecture
 
 ```
-Intake & Duplicate Check (blue section)
-  → PDF Parsing & Rule Extraction (dark blue section)
+Intake & Duplicate Check (green section)
+  → PDF Parsing & Rule Extraction (blue section)
     → Deterministic Calculation & Output Writing (blue section)
 
 Error Handling & Alerts (red section)
@@ -70,16 +71,18 @@ Error Handling & Alerts (red section)
 
 ## Stack
 
-- **n8n** (self-hosted on VPS) – main orchestration
-- **OpenAI / LLM** – structured extraction from natural-language instructions only
-- **JavaScript** – deterministic calculations, aggregation, validation
-- **Google Sheets** – input data, output results, error logs, QA reports
-- **Google Drive** – PDF storage and retrieval
-- **Email (Gmail)** – error notifications to the team
+| Layer | Tools |
+|---|---|
+| **Orchestration** | n8n (self-hosted on VPS) |
+| **AI** | OpenAI (structured extraction from natural language only) |
+| **Logic** | JavaScript (deterministic calculations, aggregation, validation) |
+| **Data** | Google Sheets (input data, output results, error logs, QA reports) |
+| **Storage** | Google Drive (PDF storage and retrieval) |
+| **Alerts** | Gmail (error notifications to the team) |
 
 ---
 
-## Key design decisions
+## Key Design Decisions
 
 - **AI is used narrowly** — only for extracting action signals from unstructured text. All math and aggregation is deterministic code. This prevents calculation errors from LLM hallucination.
 - **Quantity conservation checks** — the system verifies that input quantities match output quantities after processing.
@@ -91,16 +94,16 @@ Error Handling & Alerts (red section)
 
 ## Impact
 
-- **Hours of manual document processing** reduced to automated pipeline runs.
-- **Zero calculation errors** — deterministic code handles all math, not the LLM.
-- **Full audit trail** — every step is logged, every result is validated.
-- **QA reports** give confidence that outputs are correct before use.
-- **Scalable** — handles increasing document volume without workflow changes.
+- **Hours of manual document processing** reduced to automated pipeline runs
+- **Zero calculation errors** — deterministic code handles all math, not the LLM
+- **Full audit trail** — every step is logged, every result is validated
+- **QA reports** give confidence that outputs are correct before use
+- **Scalable** — handles increasing document volume without workflow changes
 
 ---
 
 ## Notes
 
-- This system demonstrates a hybrid AI approach: using LLMs where they excel (understanding natural language) while keeping critical calculations in deterministic code.
-- The separation between AI extraction and mathematical processing is intentional and ensures reliability in a domain where numerical accuracy matters.
-- Built with production-grade error handling, retry logic, and team notifications.
+- This system demonstrates a hybrid AI approach: using LLMs where they excel (understanding natural language) while keeping critical calculations in deterministic code
+- The separation between AI extraction and mathematical processing is intentional and ensures reliability in a domain where numerical accuracy matters
+- Built with production-grade error handling, retry logic, and team notifications

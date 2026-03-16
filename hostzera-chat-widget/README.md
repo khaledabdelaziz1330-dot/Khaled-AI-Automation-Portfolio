@@ -1,30 +1,30 @@
 # Hostzera – AI Chat Widget & Lead Automation
 
 AI-powered customer support and sales assistant for a web hosting platform
-(Website Chat Widget · Google Sheets Knowledge Base · AI Agent · Multi-Language)
+(Website Chat Widget · Retrieval Pipeline · Multi-Language · Conversation Memory)
 
 ---
 
-![chat widget workflow](chat-widget-workflow.png)
-
-## What this system does
-
-This is an AI-driven customer support and sales assistant built for **Hostzera**, a web hosting platform, using n8n automation.
-
-The system retrieves structured service data from Google Sheets, processes it through a custom retrieval layer, and feeds it into an AI agent to generate accurate, context-aware responses — directly inside a chat widget embedded on the website.
-
-### Key features:
-
-- **AI chat widget** integrated directly into the Hostzera website
-- **Structured knowledge base** powered by Google Sheets (services, pricing, features, FAQs)
-- **Retrieval pipeline** to reduce hallucinations — the AI only answers based on verified data
-- **Multi-language support** for international visitors
-- **Conversation memory** for contextual, multi-turn replies
-- **Automatic linking** to relevant service pages and support contact
+![hostzera chat widget workflow](chat-widget-workflow.png)
 
 ---
 
-## How it works (step by step)
+## What This System Does
+
+An AI-driven customer support and sales assistant built for **Hostzera**, a web hosting platform. The system retrieves structured service data from Google Sheets, processes it through a custom retrieval layer, and feeds it into an AI agent to generate accurate, context-aware responses — directly inside a chat widget embedded on the website.
+
+**Key features:**
+
+- AI chat widget integrated directly into the Hostzera website
+- Structured knowledge base powered by Google Sheets (services, pricing, features, FAQs)
+- Retrieval pipeline to reduce hallucinations — the AI only answers based on verified data
+- Multi-language support for international visitors
+- Conversation memory for contextual, multi-turn replies
+- Automatic linking to relevant service pages and support contact
+
+---
+
+## How It Works
 
 1. **Visitor opens the chat widget on the website**
    The widget sends the visitor's message via webhook to n8n.
@@ -43,7 +43,7 @@ The system retrieves structured service data from Google Sheets, processes it th
 
 ---
 
-## Workflow architecture
+## Workflow Architecture
 
 ```
 Webhook (chat message)
@@ -60,29 +60,30 @@ Webhook (chat message)
 
 ## Stack
 
-- **n8n** (self-hosted on VPS) – main orchestration
-- **Anthropic Claude** – primary AI model for responses
-- **OpenAI** – secondary AI model
-- **Google Sheets** – structured knowledge base (services, pricing, FAQs)
-- **JavaScript** – custom retrieval logic and data formatting
-- **Webhook** – real-time communication with the chat widget
-- **Simple Memory** – conversation context for multi-turn chats
+| Layer | Tools |
+|---|---|
+| **Orchestration** | n8n (self-hosted on VPS) |
+| **AI Models** | Anthropic Claude, OpenAI |
+| **Knowledge Base** | Google Sheets (services, pricing, FAQs) |
+| **Logic** | JavaScript (custom retrieval & formatting) |
+| **Communication** | Webhook (real-time chat widget integration) |
+| **Memory** | Simple Memory (multi-turn conversation context) |
 
 ---
 
 ## Impact
 
-- **24/7 instant responses** — visitors get accurate answers without waiting for a human agent.
-- **Reduced support load** — common questions (pricing, plans, features) handled automatically.
-- **Higher lead conversion** — qualified visitors are directed to the right service pages and contact options.
-- **Multi-language reach** — serves international visitors in their preferred language.
-- **Zero hallucination risk** — retrieval pipeline ensures AI only uses verified data from the knowledge base.
+- **24/7 instant responses** — visitors get accurate answers without waiting for a human agent
+- **Reduced support load** — common questions (pricing, plans, features) handled automatically
+- **Higher lead conversion** — qualified visitors are directed to the right service pages and contact options
+- **Multi-language reach** — serves international visitors in their preferred language
+- **Zero hallucination risk** — retrieval pipeline ensures AI only uses verified data from the knowledge base
 
 ---
 
 ## Notes
 
-- The knowledge base in Google Sheets can be updated by the Hostzera team without touching the automation.
-- Conversation memory allows the widget to handle multi-turn conversations naturally.
-- Built with error handling and fallback to human support when the AI cannot resolve a query.
-- The retrieval approach (structured data → JavaScript formatting → AI agent) is designed to be more reliable than pure LLM responses.
+- The knowledge base in Google Sheets can be updated by the Hostzera team without touching the automation
+- Conversation memory allows the widget to handle multi-turn conversations naturally
+- Built with error handling and fallback to human support when the AI cannot resolve a query
+- The retrieval approach (structured data → JavaScript formatting → AI agent) is designed to be more reliable than pure LLM responses
