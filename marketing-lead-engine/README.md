@@ -5,7 +5,23 @@ Automation system that turns newly published articles into permission-based soci
 
 ---
 
-<img width="1920" alt="marketing lead engine workflow" src="https://github.com/user-attachments/assets/13a8fba5-ffe3-4d30-861a-c10306f0b079" />
+![marketing lead engine workflow](marketing-lead-engine-workflow.png)
+
+---
+
+## Workflow Architecture
+
+```
+Schedule Trigger ──→ Fetch RSS / API articles
+  → Check duplicates (URL in Google Sheets)
+    → AI rewrite (OpenAI) ──→ LinkedIn post draft + Email pitch
+      → Save drafts to Google Sheets
+        → Send permission email to author
+          → If YES → Auto-publish to LinkedIn + log
+          → If NO  → Archive + log
+
+Error Monitor ──→ Log failures + Alert team
+```
 
 ---
 

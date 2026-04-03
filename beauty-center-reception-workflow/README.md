@@ -5,7 +5,31 @@ Multi-service booking & reception system for beauty centers and salons
 
 ---
 
-![beauty center workflow](https://github.com/user-attachments/assets/0bcb25cd-e5e2-461d-b64e-ee360597670f)
+![beauty center workflow](beauty%20center%20workflow.jpg)
+
+---
+
+## Workflow Architecture
+
+```
+Messenger Trigger ──┐
+Instagram Trigger ──┼──→ Normalize Input ──→ AI Agent (OpenAI)
+WhatsApp Trigger  ──┘         │                    │
+                              │              ┌─────┴──────────┐
+                              │              │  Service match  │
+                              │              │  + Specialist   │
+                              │              │  + Calendar     │
+                              │              │  + Preferences  │
+                              │              └─────┬──────────┘
+                              │                    │
+                    ┌─────────┴────────────────────┘
+                    │
+              Route Response ──→ Messenger Output
+                              ──→ Instagram Output
+                              ──→ WhatsApp Output
+
+Follow-Up Agent ──→ Reminders + Post-visit feedback + Upsell offers
+```
 
 ---
 
