@@ -19,7 +19,7 @@ Every workflow I build is designed with structured logging, error monitoring, re
 
 ## Featured Systems
 
-### 1. AI-Powered Chat Widget & Lead Qualification — Hostzera
+### 1. Hostzera — AI Chat Widget
 
 **Stack:** n8n · Anthropic Claude · OpenAI · Google Sheets · JavaScript · Webhooks
 **Status:** Running in production since January 2026
@@ -37,7 +37,7 @@ AI-driven customer support and sales assistant for **Hostzera** (web hosting pla
 
 ---
 
-### 2. Automated Lead Scraping & AI Outreach Pipeline
+### 2. Lead Generation & AI Outreach Engine
 
 **Stack:** n8n · Google Maps Scraper · ZeroBounce · OpenAI · Google Sheets · Gmail
 **Status:** Deployed for marketing agency outreach campaigns
@@ -55,7 +55,7 @@ End-to-end pipeline: **Google Maps scraping → deduplication → email verifica
 
 ---
 
-### 3. Multi-Channel AI Receptionist — Clinic Booking System
+### 3. Clinic AI Receptionist
 
 **Stack:** n8n · OpenAI · WhatsApp / Messenger / Telegram · Google Sheets · Google Calendar
 **Status:** Production system handling live patient inquiries
@@ -73,7 +73,7 @@ Replaces manual receptionist chat with an AI assistant across WhatsApp, Messenge
 
 ---
 
-### 4. PDF-to-Excel Document Processing — AI + Deterministic Code
+### 4. Document Automation — PDF to Excel
 
 **Stack:** n8n · OpenAI · JavaScript · Google Sheets · Google Drive · Gmail
 **Status:** Deployed for construction document processing
@@ -91,7 +91,7 @@ AI-assisted pipeline that transforms **construction specification PDFs** into st
 
 ---
 
-### 5. Full CRM & Booking Ecosystem — GoHighLevel + n8n
+### 5. Wellness Club — GHL + n8n
 
 **Stack:** GoHighLevel · n8n · JavaScript · WhatsApp API · Google Sheets · Google Calendar
 **Status:** Full ecosystem deployed for wellness club operations
@@ -109,7 +109,7 @@ Comprehensive system combining GoHighLevel for the client journey (pipelines, wo
 
 ---
 
-### 6. AI Content Pipeline — Permission-Based Marketing Automation
+### 6. Marketing Content Pipeline
 
 **Stack:** n8n · OpenAI · RSS / External APIs · Slack / Email · Google Sheets
 **Status:** Deployed for content marketing automation
@@ -127,7 +127,7 @@ Content-driven marketing automation: monitors RSS feeds, generates AI-assisted s
 
 ---
 
-### 7. AI Lead Capture & Trial Booking — Gym Automation
+### 7. Gym Lead Management
 
 **Stack:** n8n · OpenAI · WhatsApp / Instagram / Messenger · Google Sheets · Google Calendar
 **Status:** Designed for gyms handling 150+ leads/month
@@ -145,7 +145,7 @@ Captures all incoming messages and turns them into a structured lead pipeline (M
 
 ---
 
-### 8. AI Reception & Multi-Channel Booking — Beauty Center
+### 8. Beauty Center AI Reception
 
 **Stack:** n8n · OpenAI · WhatsApp / Instagram / Messenger · Google Sheets · Google Calendar
 **Status:** Multi-channel reception system for beauty businesses
