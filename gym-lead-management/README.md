@@ -5,7 +5,30 @@ Multi-channel lead capture & trial booking workflow for gyms and fitness centers
 
 ---
 
-![gym workflow](https://github.com/user-attachments/assets/49e8001d-55ad-418e-b626-d25b90679fd8)
+![gym workflow](gym%20workflow.jpg)
+
+---
+
+## Workflow Architecture
+
+```
+Messenger Trigger ──┐
+Instagram Trigger ──┼──→ Normalize Input ──→ AI Agent (OpenAI)
+WhatsApp Trigger  ──┘         │                    │
+                              │              ┌─────┴──────┐
+                              │              │  Qualifies  │
+                              │              │  + Books    │
+                              │              │  + Logs     │
+                              │              └─────┬──────┘
+                              │                    │
+                    ┌─────────┴────────────────────┘
+                    │
+              Route Response ──→ Messenger Output
+                              ──→ Instagram Output
+                              ──→ WhatsApp Output
+
+Follow-Up Agent ──→ Schedule Trigger ──→ Trial reminders + No-show re-engagement
+```
 
 ---
 

@@ -5,7 +5,33 @@ Multi-channel booking and reception workflow for dental & medical clinics
 
 ---
 
-![clinic workflow](https://github.com/user-attachments/assets/03cd2bf8-23ed-4e40-a41e-5386961e61d3)
+![clinic workflow](clinic%20workflow.jpg)
+
+---
+
+## Workflow Architecture
+
+```
+Messenger Trigger ──┐
+Instagram Trigger ──┤
+WhatsApp Trigger  ──┼──→ Normalize Input ──→ AI Agent (OpenAI)
+Telegram Trigger  ──┘         │                    │
+                              │              ┌─────┴──────┐
+                              │              │  Tools:     │
+                              │              │  - FAQ      │
+                              │              │  - Calendar │
+                              │              │  - Booking  │
+                              │              └─────┬──────┘
+                              │                    │
+                    ┌─────────┴────────────────────┘
+                    │
+              Route Response ──→ Messenger Output
+                              ──→ Instagram Output
+                              ──→ WhatsApp Output
+                              ──→ Telegram Output
+
+Follow-Up Agent ──→ Schedule Trigger ──→ Check bookings ──→ Send reminders
+```
 
 ---
 
