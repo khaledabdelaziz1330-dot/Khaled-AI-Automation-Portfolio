@@ -116,7 +116,7 @@ Comprehensive system combining GoHighLevel for the client journey (pipelines, wo
 **Stack:** n8n · OpenAI · RSS / External APIs · Slack / Email · Google Sheets
 **Status:** Deployed for content marketing automation
 
-<img width="1920" alt="marketing lead engine" src="https://github.com/user-attachments/assets/13a8fba5-ffe3-4d30-861a-c10306f0b079" />
+![marketing lead engine](./marketing-lead-engine/marketing-lead-engine-workflow.png)
 
 Content-driven marketing automation: monitors RSS feeds, generates AI-assisted social posts, sends **permission requests to original authors**, and auto-publishes approved content. Ethical, permission-based approach with full tracking.
 
