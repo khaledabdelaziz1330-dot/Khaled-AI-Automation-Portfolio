@@ -205,7 +205,7 @@ Typical patterns: centralizing multi-channel inquiries into Google Sheets, autom
 
 I'm currently available for freelance and contract automation projects. If you need an automation system built — or an existing one fixed — I'd love to help.
 
-- **LinkedIn:** [Khaled Abdelaziz](https://www.linkedin.com/in/khaled-abdelaziz-20b05a393)
+- **LinkedIn:** [Khaled Abdelaziz](https://www.linkedin.com/in/khaledabdelaziz-ai)
 - **Email:** [khaledabdelaziz1330@gmail.com](mailto:khaledabdelaziz1330@gmail.com)
 
 ---
