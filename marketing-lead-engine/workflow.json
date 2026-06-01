@@ -1,109 +1,211 @@
 {
   "name": "Marketing Content Engine - Permission Based",
-  "description": "Sanitized template of the RSS-driven content engine with author permission requirement.",
   "nodes": [
     {
-      "parameters": { "rule": { "interval": [{ "field": "hours", "expression": "6" }] } },
-      "id": "trigger",
-      "name": "6-Hour Scan",
-      "type": "n8n-nodes-base.scheduleTrigger",
+      "parameters": {
+        "content": "## Ethical Content Marketing Engine\n\n**Principle:** Permission-based, not theft-based.\n\nAuthor approval REQUIRED before any post publishes. Standard content scrapers republish without asking - this system asks first.\n\n**Flow:**\n1. RSS feed scan every 6 hours\n2. Dedup new articles\n3. AI rewrite as LinkedIn post (preserves facts)\n4. Compose permission email to original author\n5. Wait for response\n6. Parse intent (approve/edit/reject)\n7. Safety checks before publish",
+        "height": 360,
+        "width": 400,
+        "color": 4
+      },
+      "id": "sn-overview",
+      "name": "📘 Overview",
+      "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [200, 300]
+      "position": [-220, 80]
     },
     {
       "parameters": {
-        "url": "={{ $env.RSS_FEED_URLS }}",
+        "rule": {
+          "interval": [{ "field": "hours", "hoursInterval": 6 }]
+        }
+      },
+      "id": "schedule",
+      "name": "Every 6 Hours",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400]
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.FEEDS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "ActiveFeeds" },
+        "lookupColumn": "active",
+        "lookupValue": "TRUE",
+        "returnAllMatches": true,
         "options": {}
       },
-      "id": "rss-read",
-      "name": "Read RSS Feeds",
-      "type": "n8n-nodes-base.rssFeedRead",
-      "typeVersion": 1,
-      "position": [420, 300]
-    },
-    {
-      "parameters": {
-        "documentId": "REPLACE_SEEN_ARTICLES_SHEET_ID",
-        "sheetName": "SeenArticles"
-      },
-      "id": "get-seen",
-      "name": "Get Seen Articles",
+      "id": "get-feeds",
+      "name": "Get Active Feed URLs",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [420, 460]
+      "typeVersion": 4.5,
+      "position": [460, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 1: RSS Aggregation & Dedup\nreturn $input.all();"
+        "url": "={{ $json.feed_url }}",
+        "options": {
+          "ignoreSSL": false
+        }
       },
-      "id": "dedup",
-      "name": "Dedupe Articles",
+      "id": "rss-read",
+      "name": "Read RSS Feed",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1.1,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SEEN_ARTICLES_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "SeenArticles" },
+        "lookupColumn": "url",
+        "lookupValue": "={{ $json.link }}",
+        "returnAllMatches": false,
+        "options": {}
+      },
+      "id": "check-seen",
+      "name": "Check If Already Seen",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [900, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter to only new + recent articles\nconst articles = $('Read RSS Feed').all();\nconst seenLookup = $input.all();\n\nconst seenUrls = new Set(seenLookup.map(s => s.json.url));\n\nconst MAX_AGE_HOURS = 48;\nconst now = Date.now();\n\nfunction isRecent(pubDate) {\n  if (!pubDate) return false;\n  const age = (now - new Date(pubDate).getTime()) / (1000 * 60 * 60);\n  return age < MAX_AGE_HOURS;\n}\n\nconst newArticles = articles\n  .map(a => a.json)\n  .filter(article => {\n    if (seenUrls.has(article.link)) return false;\n    if (!isRecent(article.pubDate || article.isoDate)) return false;\n    if (!article.title || !article.contentSnippet) return false;\n    return true;\n  })\n  .map(article => ({\n    article_id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    url: article.link,\n    title: article.title,\n    author: article.creator || article.author || extractAuthor(article.content),\n    content_snippet: (article.contentSnippet || article.content || '').slice(0, 2000),\n    pub_date: article.pubDate || article.isoDate || new Date().toISOString(),\n    discovered_at: new Date().toISOString(),\n  }));\n\nfunction extractAuthor(content) {\n  if (!content) return 'Unknown';\n  const byline = content.match(/by\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+){1,2})/);\n  return byline ? byline[1] : 'Unknown';\n}\n\nreturn newArticles.map(a => ({ json: a }));"
+      },
+      "id": "code-filter",
+      "name": "Filter New & Recent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [640, 380]
+      "position": [1120, 400]
     },
     {
       "parameters": {
-        "resource": "chat",
-        "model": "gpt-4o",
+        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
         "messages": {
           "values": [
-            { "role": "system", "content": "Rewrite article as LinkedIn post. Max 300 words. Preserve facts. Return JSON with linkedin_post, facts_preserved, rewrite_notes." }
+            {
+              "role": "system",
+              "content": "You rewrite published articles into LinkedIn-style posts.\n\nRules:\n- Maximum 300 words\n- Lead with a strong hook (first 2 lines must work alone before 'see more')\n- Preserve ALL factual claims and numbers from the original\n- Adapt structure for LinkedIn (short paragraphs, line breaks)\n- Add a Source line at the end: 'Original article by [author]: [url]'\n- Do NOT pretend to be the original author\n- Do NOT add facts not in the original\n- Match tone of professional thought leadership\n\nOutput JSON only:\n{\n  \"linkedin_post\": \"...\",\n  \"facts_preserved\": [\"...\", \"...\"],\n  \"rewrite_notes\": \"any deviations from straight rewrite\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Title: {{ $json.title }}\nAuthor: {{ $json.author }}\nURL: {{ $json.url }}\n\nContent:\n{{ $json.content_snippet }}"
+            }
           ]
         },
         "options": { "temperature": 0.7, "responseFormat": "json_object" }
       },
       "id": "ai-rewrite",
-      "name": "AI Content Rewrite",
-      "type": "n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [860, 380]
+      "name": "AI Rewrite",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [1340, 400],
+      "credentials": {
+        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 3: Permission Request Builder\nreturn $input.all();"
+        "jsCode": "// Compose permission request email\nconst article = $('Filter New & Recent').item.json;\nconst rewrite = JSON.parse($input.first().json.message.content);\n\n// Best-effort author email (production version uses Hunter.io API)\nfunction extractDomain(url) {\n  try { return new URL(url).hostname.replace('www.', ''); }\n  catch { return 'example.com'; }\n}\n\nconst domain = extractDomain(article.url);\nconst authorFirstName = (article.author || 'there').split(' ')[0];\nconst likelyEmail = article.author !== 'Unknown'\n  ? `${article.author.toLowerCase().replace(/\\s+/g, '.')}@${domain}`\n  : `editor@${domain}`;\n\nconst subject = `Permission to share your article on LinkedIn — \"${article.title.slice(0, 50)}...\"`;\n\nconst body = `Hi ${authorFirstName},\\n\\nI read your article \"${article.title}\" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.\\n\\nI always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.\\n\\nWould you be comfortable with me posting this? Here is the draft:\\n\\n----\\n${rewrite.linkedin_post}\\n----\\n\\nIf yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.\\n\\nThanks for the great work,\\n[Your name]\\n\\n[This permission request was sent via an automated content engine that requires author consent before publishing.]`;\n\nreturn [{\n  json: {\n    permission_request_id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    article_id: article.article_id,\n    article_url: article.url,\n    article_title: article.title,\n    article_author: article.author,\n    author_email: likelyEmail,\n    subject,\n    body,\n    proposed_post: rewrite.linkedin_post,\n    facts_preserved: rewrite.facts_preserved,\n    status: 'pending_response',\n    sent_at: new Date().toISOString(),\n    response_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),\n  },\n}];"
       },
-      "id": "build-request",
-      "name": "Build Permission Request",
+      "id": "code-compose",
+      "name": "Compose Permission Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 380]
+      "position": [1560, 400]
     },
     {
       "parameters": {
         "sendTo": "={{ $json.author_email }}",
         "subject": "={{ $json.subject }}",
-        "message": "={{ $json.body }}"
+        "message": "={{ $json.body }}",
+        "options": {
+          "appendAttribution": false
+        }
       },
-      "id": "send-permission",
+      "id": "send-email",
       "name": "Send Permission Email",
       "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [1300, 380]
+      "typeVersion": 2.1,
+      "position": [1780, 400],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Outreach" }
+      }
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": "REPLACE_REQUESTS_SHEET_ID",
-        "sheetName": "PermissionRequests"
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.REQUESTS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "PermissionRequests" },
+        "columns": { "mappingMode": "autoMapInputData" }
       },
       "id": "log-request",
       "name": "Log Permission Request",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [1520, 380]
+      "typeVersion": 4.5,
+      "position": [2000, 320],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SEEN_ARTICLES_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "SeenArticles" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "url": "={{ $('Filter New & Recent').item.json.url }}",
+            "title": "={{ $('Filter New & Recent').item.json.title }}",
+            "discovered_at": "={{ $now.toISO() }}"
+          }
+        }
+      },
+      "id": "log-seen",
+      "name": "Mark as Seen",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2000, 480],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
-    "6-Hour Scan": { "main": [[ { "node": "Read RSS Feeds", "type": "main", "index": 0 }, { "node": "Get Seen Articles", "type": "main", "index": 0 } ]] },
-    "Read RSS Feeds": { "main": [[ { "node": "Dedupe Articles", "type": "main", "index": 0 } ]] },
-    "Get Seen Articles": { "main": [[ { "node": "Dedupe Articles", "type": "main", "index": 0 } ]] },
-    "Dedupe Articles": { "main": [[ { "node": "AI Content Rewrite", "type": "main", "index": 0 } ]] },
-    "AI Content Rewrite": { "main": [[ { "node": "Build Permission Request", "type": "main", "index": 0 } ]] },
-    "Build Permission Request": { "main": [[ { "node": "Send Permission Email", "type": "main", "index": 0 } ]] },
-    "Send Permission Email": { "main": [[ { "node": "Log Permission Request", "type": "main", "index": 0 } ]] }
+    "Every 6 Hours": { "main": [[{ "node": "Get Active Feed URLs", "type": "main", "index": 0 }]] },
+    "Get Active Feed URLs": { "main": [[{ "node": "Read RSS Feed", "type": "main", "index": 0 }]] },
+    "Read RSS Feed": { "main": [[{ "node": "Check If Already Seen", "type": "main", "index": 0 }]] },
+    "Check If Already Seen": { "main": [[{ "node": "Filter New & Recent", "type": "main", "index": 0 }]] },
+    "Filter New & Recent": { "main": [[{ "node": "AI Rewrite", "type": "main", "index": 0 }]] },
+    "AI Rewrite": { "main": [[{ "node": "Compose Permission Request", "type": "main", "index": 0 }]] },
+    "Compose Permission Request": { "main": [[{ "node": "Send Permission Email", "type": "main", "index": 0 }]] },
+    "Send Permission Email": { "main": [[
+      { "node": "Log Permission Request", "type": "main", "index": 0 },
+      { "node": "Mark as Seen", "type": "main", "index": 0 }
+    ]] }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "tags": ["content-marketing", "permission-based", "ethical-ai"]
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
+  },
+  "versionId": "v2.0.1-marketing-engine",
+  "id": "marketing-engine-v2",
+  "tags": [
+    { "name": "content-marketing", "id": "tag-content" },
+    { "name": "permission-based", "id": "tag-ethical" },
+    { "name": "production", "id": "tag-production" }
+  ]
 }

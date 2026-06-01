@@ -1,123 +1,260 @@
 {
-  "name": "Holistic Wellness Club - GHL Event Logger",
-  "description": "Sanitized template of the n8n backend brain for the GHL-powered wellness club system.",
+  "name": "Wellness Club - GHL Event Logger & Reminder Scheduler",
   "nodes": [
     {
       "parameters": {
-        "httpMethod": "POST",
-        "path": "ghl-webhook",
-        "responseMode": "lastNode"
+        "content": "## Wellness Club Backend\n\n**Pattern:** GHL handles client journey, n8n handles backend reliability.\n\n**This workflow:**\n1. Receives GHL webhooks (any event)\n2. Normalizes event schema\n3. Idempotency check (handles GHL retries)\n4. Routes by event type\n5. Logs to appropriate sheet\n6. Triggers tiered reminders for new appointments\n\n**Sheets used:** Bookings_Log, Leads_Log, KPIs, Errors",
+        "height": 360,
+        "width": 400,
+        "color": 6
       },
-      "id": "ghl-webhook",
-      "name": "GHL Webhook Receiver",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [200, 300]
+      "id": "sn-overview",
+      "name": "📘 Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 1: GHL Event Normalizer\nreturn $input.all();"
+        "httpMethod": "POST",
+        "path": "ghl-event",
+        "responseMode": "responseNode",
+        "options": {
+          "responseHeaders": {
+            "entries": [{ "name": "Content-Type", "value": "application/json" }]
+          }
+        }
       },
-      "id": "normalize",
+      "id": "webhook",
+      "name": "GHL Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 400],
+      "webhookId": "ghl-event-webhook"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Normalize GHL event to consistent schema\nconst payload = $input.first().json.body || $input.first().json;\n\nconst eventTypeMap = {\n  'ContactCreate': 'lead.created',\n  'ContactUpdate': 'lead.updated',\n  'OpportunityCreate': 'opportunity.created',\n  'OpportunityStatusChange': 'opportunity.status_changed',\n  'AppointmentCreate': 'appointment.created',\n  'AppointmentStatusUpdate': 'appointment.status_changed',\n  'AppointmentCancel': 'appointment.cancelled',\n};\n\nconst eventType = eventTypeMap[payload.type] || `ghl.${payload.type || 'unknown'}`;\n\nconst normalized = {\n  event_id: payload.id || `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n  event_type: eventType,\n  event_timestamp: payload.dateAdded || payload.dateUpdated || new Date().toISOString(),\n  \n  contact: {\n    id: payload.contactId || payload.contact?.id || null,\n    name: payload.contact?.firstName ? `${payload.contact.firstName} ${payload.contact.lastName || ''}`.trim() : null,\n    email: payload.contact?.email || null,\n    phone: payload.contact?.phone || null,\n    tags: payload.contact?.tags || [],\n  },\n  \n  opportunity: payload.opportunity ? {\n    id: payload.opportunity.id,\n    pipeline_id: payload.opportunity.pipelineId,\n    stage_id: payload.opportunity.pipelineStageId,\n    stage_name: payload.opportunity.pipelineStageName,\n    value: payload.opportunity.monetaryValue,\n    status: payload.opportunity.status,\n  } : null,\n  \n  appointment: payload.appointment ? {\n    id: payload.appointment.id,\n    start_time: payload.appointment.startTime,\n    end_time: payload.appointment.endTime,\n    status: payload.appointment.appointmentStatus,\n    assigned_to: payload.appointment.assignedUserId,\n    title: payload.appointment.title || payload.appointment.appointmentTitle,\n  } : null,\n  \n  raw_payload_excerpt: JSON.stringify(payload).slice(0, 1000),\n};\n\nreturn [{ json: normalized }];"
+      },
+      "id": "code-normalize",
       "name": "Normalize Event",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [460, 400]
     },
     {
       "parameters": {
-        "documentId": "REPLACE_EVENTS_SHEET_ID",
-        "sheetName": "Bookings_Log",
-        "filtersUI": {
-          "values": [{ "lookupColumn": "event_id", "lookupValue": "={{ $json.event_id }}" }]
-        }
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.EVENTS_LOG_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "AllEvents" },
+        "lookupColumn": "event_id",
+        "lookupValue": "={{ $json.event_id }}",
+        "returnAllMatches": false,
+        "options": {}
       },
-      "id": "get-recent",
-      "name": "Get Recent Events",
+      "id": "sheets-idempotency",
+      "name": "Check Duplicates",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [640, 300]
+      "typeVersion": 4.5,
+      "position": [680, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Wellness" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 2: Idempotent Event Logger\nreturn $input.all();"
+        "jsCode": "// Idempotency check + business hours flag\nconst event = $('Normalize Event').item.json;\nconst existing = $input.all();\n\nconst isDuplicate = existing.some(e => e.json.event_id === event.event_id);\n\nif (isDuplicate) {\n  return [{ json: { ...event, _skip_reason: 'duplicate_event', _processed: false } }];\n}\n\n// Compute derived fields\nconst date = new Date(event.event_timestamp);\nconst day = date.getDay();\nconst hour = date.getHours();\n\nconst funnelOrder = ['New Lead', 'Contacted', 'Hot', 'Booking Confirmed', 'Attended', 'No-show', 'Cancelled', 'Member'];\nconst funnelPosition = event.opportunity?.stage_name ? funnelOrder.indexOf(event.opportunity.stage_name) : -1;\n\nreturn [{\n  json: {\n    ...event,\n    derived: {\n      day_of_week: day,\n      hour_of_day: hour,\n      is_business_hours: day >= 1 && day <= 5 && hour >= 9 && hour < 19,\n      funnel_position: funnelPosition,\n      week_iso: `${date.getFullYear()}-W${Math.ceil((date.getDate() + new Date(date.getFullYear(), 0, 1).getDay()) / 7).toString().padStart(2, '0')}`,\n    },\n    _processed: true,\n    _logged_at: new Date().toISOString(),\n  },\n}];"
       },
-      "id": "idem-check",
-      "name": "Idempotency Check",
+      "id": "code-enrich",
+      "name": "Enrich & Idempotency",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 300]
+      "position": [900, 400]
     },
     {
       "parameters": {
-        "conditions": { "string": [{ "value1": "={{ $json._idempotency }}", "operation": "notEqual", "value2": "duplicate_skipped" }] }
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{
+            "leftValue": "={{ $json._processed }}",
+            "rightValue": true,
+            "operator": { "type": "boolean", "operation": "true" }
+          }],
+          "combinator": "and"
+        }
       },
-      "id": "not-dup",
-      "name": "Not Duplicate",
+      "id": "if-not-dup",
+      "name": "Not Duplicate?",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1080, 300]
+      "typeVersion": 2.2,
+      "position": [1120, 400]
     },
     {
       "parameters": {
         "rules": {
           "values": [
-            { "conditions": { "string": [{ "value1": "={{ $json.event_type }}", "value2": "booking.created" }] }, "outputKey": "booking" },
-            { "conditions": { "string": [{ "value1": "={{ $json.event_type }}", "value2": "lead.created" }] }, "outputKey": "lead" },
-            { "conditions": { "string": [{ "value1": "={{ $json.event_type }}", "value2": "appointment.created" }] }, "outputKey": "appointment" }
+            {
+              "conditions": {
+                "conditions": [{
+                  "leftValue": "={{ $json.event_type }}",
+                  "rightValue": "appointment.created",
+                  "operator": { "type": "string", "operation": "equals" }
+                }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "appointment_created"
+            },
+            {
+              "conditions": {
+                "conditions": [{
+                  "leftValue": "={{ $json.event_type }}",
+                  "rightValue": "lead.created",
+                  "operator": { "type": "string", "operation": "equals" }
+                }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "lead_created"
+            },
+            {
+              "conditions": {
+                "conditions": [{
+                  "leftValue": "={{ $json.event_type }}",
+                  "rightValue": "opportunity.status_changed",
+                  "operator": { "type": "string", "operation": "equals" }
+                }],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "opp_status_changed"
+            }
           ]
-        }
+        },
+        "options": { "fallbackOutput": "extra" }
       },
       "id": "route",
       "name": "Route by Event Type",
       "type": "n8n-nodes-base.switch",
-      "typeVersion": 3,
-      "position": [1300, 240]
+      "typeVersion": 3.2,
+      "position": [1340, 400]
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": "REPLACE_EVENTS_SHEET_ID",
-        "sheetName": "Bookings_Log"
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.EVENTS_LOG_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Bookings_Log" },
+        "columns": { "mappingMode": "autoMapInputData" }
       },
-      "id": "log-booking",
-      "name": "Log Booking Event",
+      "id": "log-appointment",
+      "name": "Log Appointment",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [1520, 180]
+      "typeVersion": 4.5,
+      "position": [1560, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Wellness" }
+      }
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": "REPLACE_EVENTS_SHEET_ID",
-        "sheetName": "Leads_Log"
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.EVENTS_LOG_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Leads_Log" },
+        "columns": { "mappingMode": "autoMapInputData" }
       },
       "id": "log-lead",
-      "name": "Log Lead Event",
+      "name": "Log Lead",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [1520, 300]
+      "typeVersion": 4.5,
+      "position": [1560, 360],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Wellness" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 4: Tiered Reminder Builder\nreturn $input.all();"
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.EVENTS_LOG_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Pipeline_Changes" },
+        "columns": { "mappingMode": "autoMapInputData" }
       },
-      "id": "build-reminders",
+      "id": "log-pipeline",
+      "name": "Log Pipeline Change",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1560, 520],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Wellness" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Build 24h + 2h + post-visit reminder schedule\nconst event = $input.first().json;\n\nif (!event.appointment || !event.appointment.start_time) {\n  return [];\n}\n\nconst apptStart = new Date(event.appointment.start_time);\nconst apptEnd = new Date(event.appointment.end_time || apptStart.getTime() + 60 * 60 * 1000);\nconst now = new Date();\n\nconst reminders = [];\n\nconst r24 = new Date(apptStart.getTime() - 24 * 60 * 60 * 1000);\nif (r24 > now) {\n  reminders.push({\n    type: 'reminder_24h',\n    send_at: r24.toISOString(),\n    contact_id: event.contact.id,\n    appointment_id: event.appointment.id,\n    template_key: 'reminder_24h',\n  });\n}\n\nconst r2 = new Date(apptStart.getTime() - 2 * 60 * 60 * 1000);\nif (r2 > now) {\n  reminders.push({\n    type: 'reminder_2h',\n    send_at: r2.toISOString(),\n    contact_id: event.contact.id,\n    appointment_id: event.appointment.id,\n    template_key: 'reminder_2h',\n  });\n}\n\nconst postVisit = new Date(apptEnd.getTime() + 2 * 60 * 60 * 1000);\nreminders.push({\n  type: 'post_visit_review',\n  send_at: postVisit.toISOString(),\n  contact_id: event.contact.id,\n  appointment_id: event.appointment.id,\n  template_key: 'post_visit_review',\n});\n\nreturn reminders.map(r => ({ json: r }));"
+      },
+      "id": "code-reminders",
       "name": "Build Reminders",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1520, 420]
+      "position": [1780, 200]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SCHEDULED_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "ScheduledMessages" },
+        "columns": { "mappingMode": "autoMapInputData" }
+      },
+      "id": "queue-reminders",
+      "name": "Queue Reminders",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2000, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Wellness" }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\", \"event_id\": \"{{ $('Normalize Event').item.json.event_id }}\", \"processed\": true }"
+      },
+      "id": "respond",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2220, 400]
     }
   ],
+  "pinData": {},
   "connections": {
-    "GHL Webhook Receiver": { "main": [[ { "node": "Normalize Event", "type": "main", "index": 0 } ]] },
-    "Normalize Event": { "main": [[ { "node": "Get Recent Events", "type": "main", "index": 0 } ]] },
-    "Get Recent Events": { "main": [[ { "node": "Idempotency Check", "type": "main", "index": 0 } ]] },
-    "Idempotency Check": { "main": [[ { "node": "Not Duplicate", "type": "main", "index": 0 } ]] },
-    "Not Duplicate": { "main": [[ { "node": "Route by Event Type", "type": "main", "index": 0 } ]] },
-    "Route by Event Type": { "main": [[ { "node": "Log Booking Event", "type": "main", "index": 0 } ], [ { "node": "Log Lead Event", "type": "main", "index": 0 } ], [ { "node": "Build Reminders", "type": "main", "index": 0 } ]] }
+    "GHL Webhook": { "main": [[{ "node": "Normalize Event", "type": "main", "index": 0 }]] },
+    "Normalize Event": { "main": [[{ "node": "Check Duplicates", "type": "main", "index": 0 }]] },
+    "Check Duplicates": { "main": [[{ "node": "Enrich & Idempotency", "type": "main", "index": 0 }]] },
+    "Enrich & Idempotency": { "main": [[{ "node": "Not Duplicate?", "type": "main", "index": 0 }]] },
+    "Not Duplicate?": { "main": [[{ "node": "Route by Event Type", "type": "main", "index": 0 }], [{ "node": "Webhook Response", "type": "main", "index": 0 }]] },
+    "Route by Event Type": { "main": [
+      [{ "node": "Log Appointment", "type": "main", "index": 0 }, { "node": "Build Reminders", "type": "main", "index": 0 }],
+      [{ "node": "Log Lead", "type": "main", "index": 0 }],
+      [{ "node": "Log Pipeline Change", "type": "main", "index": 0 }],
+      [{ "node": "Log Pipeline Change", "type": "main", "index": 0 }]
+    ] },
+    "Log Appointment": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] },
+    "Log Lead": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] },
+    "Log Pipeline Change": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] },
+    "Build Reminders": { "main": [[{ "node": "Queue Reminders", "type": "main", "index": 0 }]] },
+    "Queue Reminders": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "tags": ["ghl-integration", "event-sourcing", "wellness"]
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
+  },
+  "versionId": "v2.0.1-wellness-ghl",
+  "id": "wellness-ghl-v2",
+  "tags": [
+    { "name": "ghl-integration", "id": "tag-ghl" },
+    { "name": "event-sourcing", "id": "tag-events" },
+    { "name": "production", "id": "tag-production" }
+  ]
 }

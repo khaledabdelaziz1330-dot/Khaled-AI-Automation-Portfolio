@@ -1,139 +1,245 @@
 {
   "name": "Hostzera AI Chat Widget - Retrieval Grounded",
-  "description": "Sanitized template of the production chat widget workflow. Replace credential references and Sheet IDs before deploying.",
   "nodes": [
+    {
+      "parameters": {
+        "content": "## Hostzera AI Chat Widget\n\n**Core principle:** Retrieval-grounded. AI never answers from training data, only from Google Sheets knowledge base.\n\n**Stack:** n8n + Claude + OpenAI (fallback) + Google Sheets\n\n**Flow:**\n1. Widget POST → webhook\n2. Get session history + knowledge base\n3. Score & retrieve relevant KB rows\n4. Detect language\n5. AI response grounded ONLY in retrieved context\n6. Enrich response with product links\n7. Log conversation, return to widget",
+        "height": 400,
+        "width": 400,
+        "color": 5
+      },
+      "id": "sn1-overview",
+      "name": "📘 Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "hostzera-chat",
-        "responseMode": "lastNode"
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false,
+          "responseHeaders": {
+            "entries": [
+              { "name": "Content-Type", "value": "application/json" },
+              { "name": "Access-Control-Allow-Origin", "value": "={{ $env.HOSTZERA_DOMAIN }}" }
+            ]
+          }
+        }
       },
-      "id": "webhook",
+      "id": "wh-001",
       "name": "Chat Widget Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 300]
+      "position": [240, 400],
+      "webhookId": "hostzera-chat-webhook"
     },
     {
       "parameters": {
-        "documentId": "REPLACE_WITH_KB_SHEET_ID",
-        "sheetName": "KnowledgeBase",
+        "jsCode": "// Validate incoming payload from chat widget\nconst body = $input.first().json.body;\n\nif (!body.message || typeof body.message !== 'string') {\n  throw new Error('Missing or invalid message field');\n}\nif (!body.session_id) {\n  throw new Error('Missing session_id');\n}\n\n// Rate limiting check via session_id (simple counter in Sheets)\nconst MAX_MESSAGE_LENGTH = 1000;\nif (body.message.length > MAX_MESSAGE_LENGTH) {\n  throw new Error(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);\n}\n\nreturn [{\n  json: {\n    session_id: body.session_id,\n    message: body.message.trim(),\n    visitor_ip: $input.first().json.headers['x-forwarded-for'] || 'unknown',\n    user_agent: $input.first().json.headers['user-agent'] || 'unknown',\n    received_at: new Date().toISOString(),\n  },\n}];"
+      },
+      "id": "code-validate",
+      "name": "Validate Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 400]
+    },
+    {
+      "parameters": {
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.KB_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "KnowledgeBase" },
+        "lookupColumn": "active",
+        "lookupValue": "TRUE",
+        "returnAllMatches": true,
         "options": {}
       },
-      "id": "get-kb",
+      "id": "sheets-kb",
       "name": "Get Knowledge Base",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [420, 200],
-      "credentials": { "googleSheetsOAuth2Api": { "id": "REPLACE", "name": "Google Sheets" } }
+      "typeVersion": 4.5,
+      "position": [680, 240],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
+      }
     },
     {
       "parameters": {
-        "documentId": "REPLACE_WITH_SESSION_SHEET_ID",
-        "sheetName": "Conversations",
-        "filtersUI": {
-          "values": [{ "lookupColumn": "session_id", "lookupValue": "={{ $('Chat Widget Webhook').first().json.session_id }}" }]
-        }
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CONVERSATIONS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
+        "lookupColumn": "session_id",
+        "lookupValue": "={{ $('Validate Request').item.json.session_id }}",
+        "returnAllMatches": true,
+        "options": {}
       },
-      "id": "get-history",
+      "id": "sheets-history",
       "name": "Get Session History",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [420, 400]
+      "typeVersion": 4.5,
+      "position": [680, 560],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 1: Knowledge Base Retrieval\n// Scores KB rows against user message, returns top 5\nreturn $input.all();"
+        "jsCode": "// KB retrieval - keyword scoring against user message\n// Returns top 5 most relevant rows\n\nconst userMessage = $('Validate Request').item.json.message.toLowerCase();\nconst kbRows = $('Get Knowledge Base').all();\n\nconst messageTokens = userMessage\n  .replace(/[^\\w\\s\\u0600-\\u06FF]/g, ' ')\n  .split(/\\s+/)\n  .filter(t => t.length > 2);\n\nfunction scoreRow(row) {\n  const searchable = [\n    row.json.product || '',\n    row.json.description || '',\n    row.json.tags || '',\n    row.json.alternate_names || '',\n  ].join(' ').toLowerCase();\n  \n  let score = 0;\n  let matchedTokens = [];\n  \n  messageTokens.forEach(token => {\n    if (searchable.includes(token)) {\n      score += token.length; // Longer matches = stronger signal\n      matchedTokens.push(token);\n    }\n  });\n  \n  // Exact product name match boosts score significantly\n  if (row.json.product && userMessage.includes(row.json.product.toLowerCase())) {\n    score *= 2;\n  }\n  \n  return { row: row.json, score, matchedTokens };\n}\n\nconst scored = kbRows\n  .map(scoreRow)\n  .filter(s => s.score > 0)\n  .sort((a, b) => b.score - a.score)\n  .slice(0, 5);\n\nconst retrievedContext = scored.length > 0\n  ? scored.map(s => `Product: ${s.row.product}\\nDescription: ${s.row.description}\\nPrice: ${s.row.price}\\nURL: ${s.row.url}`).join('\\n---\\n')\n  : 'No matching products found in knowledge base.';\n\nreturn [{\n  json: {\n    retrieved_context: retrievedContext,\n    retrieved_count: scored.length,\n    retrieved_products: scored.map(s => ({ product: s.row.product, url: s.row.url })),\n  },\n}];"
       },
-      "id": "kb-retrieval",
-      "name": "KB Retrieval",
+      "id": "code-retrieval",
+      "name": "KB Retrieval & Scoring",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [640, 200]
+      "position": [900, 240]
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 5: Language Detection\nreturn $input.all();"
+        "jsCode": "// Language detection + history formatting\nconst message = $('Validate Request').item.json.message;\nconst historyRows = $('Get Session History').all();\n\n// Language detection\nlet language = 'en';\nif (/[\\u0600-\\u06FF]/.test(message)) language = 'ar';\nelse if (/[\\u0400-\\u04FF]/.test(message)) language = 'ru';\nelse if (/[\\u4E00-\\u9FFF]/.test(message)) language = 'zh';\n\n// Format recent history (last 10 turns)\nconst recentHistory = historyRows\n  .slice(-10)\n  .map(r => ({\n    role: r.json.direction === 'inbound' ? 'user' : 'assistant',\n    content: r.json.direction === 'inbound' ? r.json.user_message : r.json.ai_response,\n  }))\n  .filter(m => m.content);\n\nconst languageNames = { en: 'English', ar: 'Arabic', ru: 'Russian', zh: 'Chinese' };\n\nreturn [{\n  json: {\n    detected_language: language,\n    language_name: languageNames[language],\n    history: recentHistory,\n    history_formatted: recentHistory.map(m => `${m.role}: ${m.content}`).join('\\n'),\n    total_turns: historyRows.length,\n  },\n}];"
       },
-      "id": "lang-detect",
-      "name": "Detect Language",
+      "id": "code-lang",
+      "name": "Detect Language & Format History",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [640, 400]
+      "position": [900, 560]
     },
     {
       "parameters": {
-        "resource": "chat",
-        "model": "claude-3-5-sonnet-20241022",
-        "messages": {
-          "values": [
-            { "role": "system", "content": "You are Hostzera's AI assistant. ANSWER ONLY from retrieved context. If not in context, say: 'Let me connect you with our team.' Respond in {{ $('Detect Language').first().json.detected_language }}." },
-            { "role": "user", "content": "Retrieved context:\n{{ $('KB Retrieval').first().json.retrieved_context }}\n\nUser: {{ $('Chat Widget Webhook').first().json.message }}" }
+        "method": "POST",
+        "url": "https://api.anthropic.com/v1/messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" },
+            { "name": "anthropic-version", "value": "2023-06-01" },
+            { "name": "content-type", "value": "application/json" }
           ]
         },
-        "options": { "temperature": 0.3 }
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"claude-3-5-sonnet-20241022\",\n  \"max_tokens\": 800,\n  \"temperature\": 0.3,\n  \"system\": \"You are Hostzera's AI sales and support assistant.\\n\\nCRITICAL RULES:\\n1. Answer ONLY using the information in the Retrieved Context below.\\n2. If the user asks something not covered by the context, respond with: 'Great question — let me connect you with our team for an accurate answer.'\\n3. Never invent prices, plans, features, or specifications.\\n4. Reply in {{ $('Detect Language & Format History').item.json.language_name }}.\\n5. Be friendly, concise, and helpful.\\n6. When mentioning a product, you may include its URL inline using markdown.\\n\\nRetrieved Context:\\n{{ $('KB Retrieval & Scoring').item.json.retrieved_context }}\\n\\nRecent conversation (last 10 turns):\\n{{ $('Detect Language & Format History').item.json.history_formatted }}\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{ $('Validate Request').item.json.message }}\" }\n  ]\n}",
+        "options": {
+          "retry": { "maxRetries": 2, "waitBetweenRetries": 1500 },
+          "timeout": 15000
+        }
       },
-      "id": "ai-claude",
-      "name": "AI Response - Claude",
-      "type": "n8n-nodes-langchain.anthropic",
-      "typeVersion": 1,
-      "position": [860, 300]
+      "id": "http-claude",
+      "name": "Claude Response",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1140, 400]
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 3: Page Link Auto-Insertion\nreturn $input.all();"
+        "jsCode": "// Extract response text + enrich with auto-links\nconst claudeResponse = $input.first().json;\nlet responseText = claudeResponse.content?.[0]?.text || '';\n\nconst retrievedProducts = $('KB Retrieval & Scoring').item.json.retrieved_products || [];\n\n// Add markdown links for any product name not already linked\nlet linksAdded = 0;\nretrievedProducts.forEach(({ product, url }) => {\n  if (!product || !url) return;\n  \n  // Check if product name appears in response but isn't already a link\n  const escapedName = product.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&');\n  const linkRegex = new RegExp(`\\\\[[^\\\\]]*${escapedName}[^\\\\]]*\\\\]`, 'i');\n  if (linkRegex.test(responseText)) return; // Already linked\n  \n  const nameRegex = new RegExp(`\\\\b${escapedName}\\\\b`, 'i');\n  if (nameRegex.test(responseText)) {\n    responseText = responseText.replace(nameRegex, (match) => {\n      linksAdded++;\n      return `[${match}](${url})`;\n    });\n  }\n});\n\nreturn [{\n  json: {\n    response_text: responseText,\n    links_added: linksAdded,\n    model_used: 'claude-3-5-sonnet-20241022',\n    tokens_used: claudeResponse.usage?.output_tokens || 0,\n    input_tokens: claudeResponse.usage?.input_tokens || 0,\n  },\n}];"
       },
-      "id": "link-enrich",
-      "name": "Enrich with Page Links",
+      "id": "code-enrich",
+      "name": "Enrich with Links",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 300]
+      "position": [1360, 400]
     },
     {
       "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": "REPLACE_WITH_SESSION_SHEET_ID",
-        "sheetName": "Conversations",
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CONVERSATIONS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
             "timestamp": "={{ $now.toISO() }}",
-            "session_id": "={{ $('Chat Widget Webhook').first().json.session_id }}",
-            "user_message": "={{ $('Chat Widget Webhook').first().json.message }}",
-            "ai_response": "={{ $json.response }}",
-            "language": "={{ $('Detect Language').first().json.detected_language }}"
+            "session_id": "={{ $('Validate Request').item.json.session_id }}",
+            "direction": "inbound",
+            "user_message": "={{ $('Validate Request').item.json.message }}",
+            "ai_response": "",
+            "language": "={{ $('Detect Language & Format History').item.json.detected_language }}",
+            "kb_matches": "={{ $('KB Retrieval & Scoring').item.json.retrieved_count }}",
+            "tokens_used": "0"
           }
         }
       },
-      "id": "log-conv",
-      "name": "Log Conversation",
+      "id": "sheets-log-user",
+      "name": "Log User Message",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [1300, 300]
+      "typeVersion": 4.5,
+      "position": [1580, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CONVERSATIONS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "session_id": "={{ $('Validate Request').item.json.session_id }}",
+            "direction": "outbound",
+            "user_message": "",
+            "ai_response": "={{ $('Enrich with Links').item.json.response_text }}",
+            "language": "={{ $('Detect Language & Format History').item.json.detected_language }}",
+            "kb_matches": "={{ $('KB Retrieval & Scoring').item.json.retrieved_count }}",
+            "tokens_used": "={{ $('Enrich with Links').item.json.tokens_used }}"
+          }
+        }
+      },
+      "id": "sheets-log-ai",
+      "name": "Log AI Response",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1580, 520],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
+      }
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ { reply: $json.response, session_id: $('Chat Widget Webhook').first().json.session_id } }}"
+        "responseBody": "={\n  \"reply\": \"{{ $('Enrich with Links').item.json.response_text.replace(/\"/g, '\\\\\"').replace(/\\n/g, '\\\\n') }}\",\n  \"session_id\": \"{{ $('Validate Request').item.json.session_id }}\",\n  \"meta\": {\n    \"language\": \"{{ $('Detect Language & Format History').item.json.detected_language }}\",\n    \"kb_matches\": {{ $('KB Retrieval & Scoring').item.json.retrieved_count }},\n    \"model\": \"{{ $('Enrich with Links').item.json.model_used }}\"\n  }\n}",
+        "options": {}
       },
       "id": "respond",
       "name": "Return to Widget",
       "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1,
-      "position": [1520, 300]
+      "typeVersion": 1.1,
+      "position": [1800, 400]
     }
   ],
+  "pinData": {},
   "connections": {
-    "Chat Widget Webhook": { "main": [[ { "node": "Get Knowledge Base", "type": "main", "index": 0 }, { "node": "Get Session History", "type": "main", "index": 0 } ]] },
-    "Get Knowledge Base": { "main": [[ { "node": "KB Retrieval", "type": "main", "index": 0 } ]] },
-    "Get Session History": { "main": [[ { "node": "Detect Language", "type": "main", "index": 0 } ]] },
-    "KB Retrieval": { "main": [[ { "node": "AI Response - Claude", "type": "main", "index": 0 } ]] },
-    "Detect Language": { "main": [[ { "node": "AI Response - Claude", "type": "main", "index": 0 } ]] },
-    "AI Response - Claude": { "main": [[ { "node": "Enrich with Page Links", "type": "main", "index": 0 } ]] },
-    "Enrich with Page Links": { "main": [[ { "node": "Log Conversation", "type": "main", "index": 0 } ]] },
-    "Log Conversation": { "main": [[ { "node": "Return to Widget", "type": "main", "index": 0 } ]] }
+    "Chat Widget Webhook": { "main": [[{ "node": "Validate Request", "type": "main", "index": 0 }]] },
+    "Validate Request": { "main": [[
+      { "node": "Get Knowledge Base", "type": "main", "index": 0 },
+      { "node": "Get Session History", "type": "main", "index": 0 }
+    ]] },
+    "Get Knowledge Base": { "main": [[{ "node": "KB Retrieval & Scoring", "type": "main", "index": 0 }]] },
+    "Get Session History": { "main": [[{ "node": "Detect Language & Format History", "type": "main", "index": 0 }]] },
+    "KB Retrieval & Scoring": { "main": [[{ "node": "Claude Response", "type": "main", "index": 0 }]] },
+    "Detect Language & Format History": { "main": [[{ "node": "Claude Response", "type": "main", "index": 0 }]] },
+    "Claude Response": { "main": [[{ "node": "Enrich with Links", "type": "main", "index": 0 }]] },
+    "Enrich with Links": { "main": [[
+      { "node": "Log User Message", "type": "main", "index": 0 },
+      { "node": "Log AI Response", "type": "main", "index": 0 },
+      { "node": "Return to Widget", "type": "main", "index": 0 }
+    ]] }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "tags": ["chat-widget", "retrieval-grounded", "multi-language"]
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner",
+    "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
+  },
+  "versionId": "v2.0.1-hostzera-chat",
+  "meta": { "templateCredsSetupCompleted": false },
+  "id": "hostzera-chat-v2",
+  "tags": [
+    { "name": "chat-widget", "id": "tag-widget" },
+    { "name": "retrieval-grounded", "id": "tag-rag" },
+    { "name": "production", "id": "tag-production" }
+  ]
 }

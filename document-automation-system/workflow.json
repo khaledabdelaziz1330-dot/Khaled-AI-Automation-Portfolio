@@ -1,145 +1,226 @@
 {
-  "name": "Document Automation - PDF to Excel",
-  "description": "Sanitized template of the construction document processing workflow. Core principle: AI for language, code for math.",
+  "name": "Document Automation - PDF to Excel (Construction Specs)",
   "nodes": [
     {
       "parameters": {
-        "filters": { "from": "={{ $env.ALLOWED_SENDERS }}", "subjectContains": "Spec PDF" },
-        "options": { "downloadAttachments": true }
+        "content": "## Document Automation Pipeline\n\n**Core principle:** AI for language, code for math.\n\nLLMs hallucinate numbers. In construction, that's expensive. So:\n- AI extracts rules and percentages AS WRITTEN\n- Deterministic code computes ALL calculations\n- QA report generated every run\n- Quality gate routes low-confidence results to human review\n\n**Stack:** n8n + OpenAI + Custom JS + Excel generation",
+        "height": 320,
+        "width": 400,
+        "color": 3
       },
-      "id": "email-trigger",
-      "name": "Gmail Trigger",
-      "type": "n8n-nodes-base.gmailTrigger",
+      "id": "sn-overview",
+      "name": "📘 Overview",
+      "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [200, 300]
+      "position": [-220, 80]
+    },
+    {
+      "parameters": {
+        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "simple": false,
+        "filters": {
+          "sender": "={{ $env.ALLOWED_PDF_SENDERS }}",
+          "labelIds": ["INBOX"],
+          "readStatus": "unread"
+        },
+        "options": {
+          "downloadAttachments": true,
+          "attachmentsPrefix": "spec_"
+        }
+      },
+      "id": "gmail-trigger",
+      "name": "Gmail New PDF",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [240, 400],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Construction" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Filter only PDF attachments and extract sender info\nconst email = $input.first().json;\nconst attachments = email.attachments || [];\n\nconst pdfs = attachments.filter(a => \n  a.filename?.toLowerCase().endsWith('.pdf') ||\n  a.contentType === 'application/pdf'\n);\n\nif (pdfs.length === 0) {\n  throw new Error('No PDF attachments found in email');\n}\n\nreturn pdfs.map(pdf => ({\n  json: {\n    run_id: `run_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    sender_email: email.from?.value?.[0]?.address || email.from,\n    sender_name: email.from?.value?.[0]?.name || '',\n    subject: email.subject || '',\n    received_at: email.date || new Date().toISOString(),\n    pdf_filename: pdf.filename,\n    pdf_size_bytes: pdf.size || 0,\n  },\n  binary: { pdf: pdf },\n}));"
+      },
+      "id": "code-filter-pdf",
+      "name": "Filter PDFs Only",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 400]
     },
     {
       "parameters": {
         "operation": "pdf",
-        "binaryPropertyName": "attachment_0",
-        "options": { "joinPages": true }
+        "binaryPropertyName": "pdf",
+        "options": {
+          "joinPages": true
+        }
       },
-      "id": "pdf-extract",
+      "id": "extract-pdf",
       "name": "Extract PDF Text",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [420, 300]
+      "position": [680, 400]
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 1: PDF Text Extraction with Structure\nreturn $input.all();"
-      },
-      "id": "pdf-parser",
-      "name": "Structured PDF Parser",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [640, 300]
-    },
-    {
-      "parameters": {
-        "resource": "chat",
-        "model": "gpt-4o",
+        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
         "messages": {
           "values": [
-            { "role": "system", "content": "Extract construction items as JSON. Numbers AS WRITTEN. Do NOT calculate. See code_examples.md for full prompt." }
+            {
+              "role": "system",
+              "content": "You are a construction specification parser.\n\nThe PDF contains items, quantities, and disposal/reuse rules. Your job: extract the rules as structured JSON.\n\nEXAMPLE INPUT:\n\"For Item X (qty: 100 pcs), reuse 40%, dispose 30%, clean and store 30%.\"\n\nEXAMPLE OUTPUT:\n{\n  \"rules\": [\n    {\n      \"item_name\": \"Item X\",\n      \"parent_item\": null,\n      \"quantity\": 100,\n      \"unit\": \"pcs\",\n      \"actions\": {\n        \"reuse_percent\": 40,\n        \"dispose_percent\": 30,\n        \"clean_store_percent\": 30\n      }\n    }\n  ]\n}\n\nCRITICAL RULES:\n- Extract numbers EXACTLY as they appear in the document\n- Do NOT calculate derived values (do not multiply percent × quantity)\n- Do NOT validate that percentages sum to 100\n- Report only what is stated in the text\n- For nested items, set parent_item to the name of the containing item\n- Return null for any field not stated\n- If text is unclear or you're uncertain, set values to null\n\nReturn ONLY valid JSON. No markdown, no commentary."
+            },
+            {
+              "role": "user",
+              "content": "={{ $('Extract PDF Text').item.json.text }}"
+            }
           ]
         },
-        "options": { "temperature": 0, "responseFormat": "json_object" }
+        "options": {
+          "temperature": 0,
+          "responseFormat": "json_object",
+          "maxTokens": 4000
+        }
       },
       "id": "ai-extract",
       "name": "AI Rule Extraction",
-      "type": "n8n-nodes-langchain.openAi",
-      "typeVersion": 1,
-      "position": [860, 300]
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [900, 400],
+      "credentials": {
+        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 3: Deterministic Calculation Engine\n// ALL arithmetic here. AI never does math.\nreturn $input.all();"
+        "jsCode": "// Deterministic calculation engine\n// AI extracted rules, code does ALL arithmetic\n// This is the heart of the 'AI for language, code for math' principle\n\nconst extraction = JSON.parse($input.first().json.message.content);\nconst rules = extraction.rules || [];\n\nif (rules.length === 0) {\n  throw new Error('No rules extracted from PDF - manual review required');\n}\n\n// Build parent-child relationships\nconst itemsByName = {};\nrules.forEach(rule => { itemsByName[rule.item_name] = rule; });\n\nconst children = {};\nrules.forEach(rule => {\n  if (rule.parent_item) {\n    if (!children[rule.parent_item]) children[rule.parent_item] = [];\n    children[rule.parent_item].push(rule);\n  }\n});\n\n// Calculate action quantities for each rule (deterministic)\nfunction calculateActions(rule) {\n  const qty = rule.quantity;\n  const actions = rule.actions || {};\n  const calculated = {};\n  \n  if (typeof qty !== 'number' || qty <= 0) {\n    return { ...rule, calculated: {}, validation: { error: 'invalid_quantity', value: qty } };\n  }\n  \n  if (typeof actions.reuse_percent === 'number') {\n    calculated.reuse_quantity = Math.round((actions.reuse_percent / 100) * qty * 1000) / 1000;\n  }\n  if (typeof actions.dispose_percent === 'number') {\n    calculated.dispose_quantity = Math.round((actions.dispose_percent / 100) * qty * 1000) / 1000;\n  }\n  if (typeof actions.clean_store_percent === 'number') {\n    calculated.clean_store_quantity = Math.round((actions.clean_store_percent / 100) * qty * 1000) / 1000;\n  }\n  \n  const totalPercent = (actions.reuse_percent || 0) + (actions.dispose_percent || 0) + (actions.clean_store_percent || 0);\n  const totalQty = (calculated.reuse_quantity || 0) + (calculated.dispose_quantity || 0) + (calculated.clean_store_quantity || 0);\n  \n  return {\n    ...rule,\n    calculated,\n    validation: {\n      percent_sum: totalPercent,\n      percent_balanced: Math.abs(totalPercent - 100) < 0.01,\n      quantity_sum: totalQty,\n      quantity_balanced: Math.abs(totalQty - qty) < 0.01,\n    },\n  };\n}\n\nfunction calculateParentAggregation(parentRule) {\n  const childRules = children[parentRule.item_name] || [];\n  if (childRules.length === 0) return null;\n  return {\n    child_count: childRules.length,\n    children_total_qty: childRules.reduce((sum, c) => sum + (c.quantity || 0), 0),\n    child_names: childRules.map(c => c.item_name),\n  };\n}\n\n// Detect duplicate item names\nconst nameCounts = {};\nrules.forEach(r => {\n  const key = r.item_name.toLowerCase().trim();\n  nameCounts[key] = (nameCounts[key] || 0) + 1;\n});\nconst duplicates = Object.entries(nameCounts).filter(([_, c]) => c > 1).map(([name, count]) => ({ item_name: name, occurrences: count }));\n\nconst calculated = rules.map(rule => {\n  const withCalc = calculateActions(rule);\n  const parentAgg = calculateParentAggregation(rule);\n  if (parentAgg) withCalc.parent_aggregation = parentAgg;\n  return withCalc;\n});\n\nreturn [{\n  json: {\n    calculated_items: calculated,\n    duplicates_found: duplicates,\n    total_items: calculated.length,\n    items_with_actions: calculated.filter(c => c.actions && Object.keys(c.actions).length > 0).length,\n    items_balanced: calculated.filter(c => c.validation?.percent_balanced).length,\n    calculation_timestamp: new Date().toISOString(),\n  },\n}];"
       },
-      "id": "calc-engine",
-      "name": "Calculation Engine",
+      "id": "code-calc",
+      "name": "Calculation Engine (Deterministic)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1080, 300]
+      "position": [1120, 400]
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 4: Duplicate Detection\nreturn $input.all();"
+        "jsCode": "// Generate quality assurance report\nconst data = $input.first().json;\nconst run = $('Filter PDFs Only').item.json;\n\nconst items = data.calculated_items;\nconst total = items.length;\nconst balanced = data.items_balanced;\nconst withActions = data.items_with_actions;\nconst duplicateCount = data.duplicates_found.length;\nconst completeness = items.filter(i => i.quantity != null).length / Math.max(total, 1);\n\n// Quality score formula\nconst score = Math.round((\n  (balanced / Math.max(total, 1)) * 0.5 +\n  (duplicateCount === 0 ? 1 : 0.5) * 0.3 +\n  completeness * 0.2\n) * 100);\n\nconst warnings = [\n  ...data.duplicates_found.map(d => `DUPLICATE: \"${d.item_name}\" appears ${d.occurrences} times`),\n  ...items.filter(i => i.validation?.percent_balanced === false)\n    .map(i => `IMBALANCE: \"${i.item_name}\" percentages sum to ${i.validation.percent_sum}%, not 100`),\n  ...items.filter(i => i.validation?.error)\n    .map(i => `ERROR: \"${i.item_name}\" - ${i.validation.error}: ${i.validation.value}`),\n];\n\nconst recommendations = [];\nif (score < 70) recommendations.push('Quality below 70% threshold - manual review required before Excel export');\nif (duplicateCount > 0) recommendations.push('Resolve duplicate item names in source PDF before next run');\nif (withActions < total * 0.8) recommendations.push('Many items missing action rules - PDF may need clearer formatting');\n\nreturn [{\n  json: {\n    run_id: run.run_id,\n    quality_score: score,\n    quality_label: score >= 85 ? 'excellent' : score >= 70 ? 'good' : score >= 50 ? 'fair' : 'poor',\n    summary: {\n      total_items: total,\n      items_with_actions: withActions,\n      items_balanced: balanced,\n      duplicate_count: duplicateCount,\n      completeness_ratio: completeness,\n    },\n    warnings,\n    recommendations,\n    can_auto_export: score >= 70 && warnings.length === 0,\n    items: items,\n    generated_at: new Date().toISOString(),\n  },\n}];"
       },
-      "id": "dup-detect",
-      "name": "Duplicate Detection",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1300, 300]
-    },
-    {
-      "parameters": {
-        "jsCode": "// See code_examples.md Section 5: QA Report Generation\nreturn $input.all();"
-      },
-      "id": "qa-report",
+      "id": "code-qa",
       "name": "Generate QA Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1520, 300]
+      "position": [1340, 400]
     },
     {
       "parameters": {
-        "conditions": { "number": [{ "value1": "={{ $json.quality_score }}", "operation": "largerEqual", "value2": 70 }] }
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.can_auto_export }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "true" }
+            }
+          ],
+          "combinator": "and"
+        }
       },
-      "id": "quality-gate",
+      "id": "if-quality",
       "name": "Quality Gate",
       "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [1740, 300]
+      "typeVersion": 2.2,
+      "position": [1560, 400]
     },
     {
       "parameters": {
-        "operation": "writeFile",
-        "fileName": "spec_output_{{ $now.toFormat('yyyyMMdd_HHmmss') }}.xlsx"
+        "operation": "create",
+        "options": { "headerRow": true }
       },
       "id": "excel-gen",
       "name": "Generate Excel",
-      "type": "n8n-nodes-base.spreadsheetFile",
-      "typeVersion": 2,
-      "position": [1960, 240]
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1780, 280]
     },
     {
       "parameters": {
-        "sendTo": "={{ $('Gmail Trigger').first().json.from }}",
-        "subject": "Processed Spec: {{ $now.toFormat('yyyy-MM-dd') }}",
-        "message": "=Quality Score: {{ $('Generate QA Report').first().json.quality_score }}%\\n\\nSee attached Excel and QA report."
+        "sendTo": "={{ $('Filter PDFs Only').item.json.sender_email }}",
+        "subject": "=Processed: {{ $('Filter PDFs Only').item.json.subject }} - Quality {{ $json.quality_score }}%",
+        "message": "=Your specification PDF has been processed.\\n\\nQuality Score: {{ $json.quality_score }}% ({{ $json.quality_label }})\\nTotal Items: {{ $json.summary.total_items }}\\nBalanced: {{ $json.summary.items_balanced }}\\n\\nSee attached Excel file with all calculated values.\\n\\nWarnings: {{ $json.warnings.length || 'None' }}\\n\\nRun ID: {{ $json.run_id }}",
+        "options": {
+          "attachmentsUi": {
+            "attachmentsBinary": [{ "property": "excel" }]
+          }
+        }
       },
-      "id": "send-result",
-      "name": "Send to Recipient",
+      "id": "gmail-send",
+      "name": "Send Excel Result",
       "type": "n8n-nodes-base.gmail",
-      "typeVersion": 2,
-      "position": [2180, 240]
+      "typeVersion": 2.1,
+      "position": [2000, 280],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Construction" }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $env.REVIEW_QUEUE_EMAIL }}",
+        "subject": "=NEEDS REVIEW: {{ $('Filter PDFs Only').item.json.subject }} - Quality {{ $json.quality_score }}%",
+        "message": "=Document failed quality threshold. Manual review needed.\\n\\nQuality: {{ $json.quality_score }}%\\nWarnings:\\n{{ $json.warnings.join('\\n') }}\\n\\nRecommendations:\\n{{ $json.recommendations.join('\\n') }}\\n\\nRun ID: {{ $json.run_id }}"
+      },
+      "id": "gmail-review",
+      "name": "Send to Review Queue",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [2000, 520],
+      "credentials": {
+        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Construction" }
+      }
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": "REPLACE_RUNS_LOG_SHEET_ID",
-        "sheetName": "ProcessingLog"
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.PROCESSING_LOG_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "ProcessingLog" },
+        "columns": { "mappingMode": "autoMapInputData" }
       },
-      "id": "log-run",
-      "name": "Log Run",
+      "id": "sheets-log",
+      "name": "Log Processing Run",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [2180, 360]
+      "typeVersion": 4.5,
+      "position": [2220, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Processing" }
+      }
     }
   ],
+  "pinData": {},
   "connections": {
-    "Gmail Trigger": { "main": [[ { "node": "Extract PDF Text", "type": "main", "index": 0 } ]] },
-    "Extract PDF Text": { "main": [[ { "node": "Structured PDF Parser", "type": "main", "index": 0 } ]] },
-    "Structured PDF Parser": { "main": [[ { "node": "AI Rule Extraction", "type": "main", "index": 0 } ]] },
-    "AI Rule Extraction": { "main": [[ { "node": "Calculation Engine", "type": "main", "index": 0 } ]] },
-    "Calculation Engine": { "main": [[ { "node": "Duplicate Detection", "type": "main", "index": 0 } ]] },
-    "Duplicate Detection": { "main": [[ { "node": "Generate QA Report", "type": "main", "index": 0 } ]] },
-    "Generate QA Report": { "main": [[ { "node": "Quality Gate", "type": "main", "index": 0 } ]] },
-    "Quality Gate": { "main": [[ { "node": "Generate Excel", "type": "main", "index": 0 }, { "node": "Log Run", "type": "main", "index": 0 } ]] },
-    "Generate Excel": { "main": [[ { "node": "Send to Recipient", "type": "main", "index": 0 } ]] }
+    "Gmail New PDF": { "main": [[{ "node": "Filter PDFs Only", "type": "main", "index": 0 }]] },
+    "Filter PDFs Only": { "main": [[{ "node": "Extract PDF Text", "type": "main", "index": 0 }]] },
+    "Extract PDF Text": { "main": [[{ "node": "AI Rule Extraction", "type": "main", "index": 0 }]] },
+    "AI Rule Extraction": { "main": [[{ "node": "Calculation Engine (Deterministic)", "type": "main", "index": 0 }]] },
+    "Calculation Engine (Deterministic)": { "main": [[{ "node": "Generate QA Report", "type": "main", "index": 0 }]] },
+    "Generate QA Report": { "main": [[{ "node": "Quality Gate", "type": "main", "index": 0 }]] },
+    "Quality Gate": { "main": [
+      [{ "node": "Generate Excel", "type": "main", "index": 0 }],
+      [{ "node": "Send to Review Queue", "type": "main", "index": 0 }]
+    ] },
+    "Generate Excel": { "main": [[{ "node": "Send Excel Result", "type": "main", "index": 0 }]] },
+    "Send Excel Result": { "main": [[{ "node": "Log Processing Run", "type": "main", "index": 0 }]] },
+    "Send to Review Queue": { "main": [[{ "node": "Log Processing Run", "type": "main", "index": 0 }]] }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "tags": ["document-automation", "pdf-processing", "deterministic-calculations"]
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
+  },
+  "versionId": "v2.0.1-doc-automation",
+  "id": "document-automation-v2",
+  "tags": [
+    { "name": "document-processing", "id": "tag-doc" },
+    { "name": "deterministic", "id": "tag-det" },
+    { "name": "production", "id": "tag-production" }
+  ]
 }

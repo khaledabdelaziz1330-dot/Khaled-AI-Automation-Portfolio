@@ -1,140 +1,263 @@
 {
-  "name": "Beauty Center AI Reception - Multi-Service Multi-Branch",
-  "description": "Sanitized template of the beauty center reception workflow with service matching, specialist selection, and preference tracking.",
+  "name": "Beauty Center AI Reception - Multi-Service & Multi-Branch",
   "nodes": [
+    {
+      "parameters": {
+        "content": "## Beauty Center Reception\n\n**Features:**\n- Multi-channel (WhatsApp, Instagram, Messenger)\n- Fuzzy service matching from informal language\n- Specialist availability check\n- Multi-branch routing\n- Preference accumulation (every visit refines future recommendations)\n- Service-aware follow-up cadence (haircut every 4 weeks, facial every 6, etc.)",
+        "height": 360,
+        "width": 400,
+        "color": 5
+      },
+      "id": "sn-overview",
+      "name": "📘 Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [-220, 80]
+    },
     {
       "parameters": {
         "httpMethod": "POST",
         "path": "beauty-reception",
-        "responseMode": "lastNode"
+        "responseMode": "responseNode"
       },
       "id": "webhook",
       "name": "Multi-Channel Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [200, 300]
+      "position": [240, 400],
+      "webhookId": "beauty-reception-webhook"
     },
     {
       "parameters": {
-        "jsCode": "// Multi-channel normalizer (see clinic-booking-system code_examples Section 1)\nreturn $input.all();"
+        "jsCode": "// Multi-channel normalizer (shared pattern across portfolio)\nconst raw = $input.first().json.body || $input.first().json;\nlet channel, normalized;\n\nif (raw.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {\n  channel = 'whatsapp';\n  const msg = raw.entry[0].changes[0].value.messages[0];\n  const contact = raw.entry[0].changes[0].value.contacts?.[0];\n  normalized = {\n    user_id: msg.from,\n    user_name: contact?.profile?.name || null,\n    message_text: msg.text?.body || '',\n  };\n} else if (raw.object === 'instagram' || raw.object === 'page') {\n  channel = raw.object === 'instagram' ? 'instagram' : 'messenger';\n  const event = raw.entry[0].messaging[0];\n  normalized = {\n    user_id: event.sender.id,\n    user_name: null,\n    message_text: event.message?.text || '',\n  };\n} else if (raw.message?.chat) {\n  channel = 'telegram';\n  normalized = {\n    user_id: String(raw.message.from.id),\n    user_name: `${raw.message.from.first_name || ''} ${raw.message.from.last_name || ''}`.trim(),\n    message_text: raw.message.text || '',\n  };\n} else {\n  throw new Error('Unknown channel');\n}\n\nreturn [{ json: { channel, ...normalized, received_at: new Date().toISOString() } }];"
       },
-      "id": "normalize",
+      "id": "code-normalize",
       "name": "Normalize Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [420, 300]
+      "position": [460, 400]
     },
     {
       "parameters": {
-        "documentId": "REPLACE_CLIENTS_SHEET_ID",
-        "sheetName": "Clients",
-        "filtersUI": {
-          "values": [{ "lookupColumn": "user_id", "lookupValue": "={{ $json.user_id }}" }]
-        }
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CLIENTS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Clients" },
+        "lookupColumn": "user_id",
+        "lookupValue": "={{ $json.user_id }}",
+        "returnAllMatches": false,
+        "options": {}
       },
       "id": "get-client",
-      "name": "Get Client Record",
+      "name": "Get Client (with Preferences)",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [640, 300]
+      "typeVersion": 4.5,
+      "position": [680, 240],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Beauty" }
+      }
     },
     {
       "parameters": {
-        "documentId": "REPLACE_CATALOG_SHEET_ID",
-        "sheetName": "Services"
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CATALOG_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Services" },
+        "lookupColumn": "active",
+        "lookupValue": "TRUE",
+        "returnAllMatches": true,
+        "options": {}
       },
-      "id": "get-services",
+      "id": "get-catalog",
       "name": "Get Services Catalog",
       "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [640, 460]
+      "typeVersion": 4.5,
+      "position": [680, 400],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Beauty" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 1: Service Matching from Natural Language\nreturn $input.all();"
+        "operation": "lookup",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.STAFF_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Specialists" },
+        "lookupColumn": "active",
+        "lookupValue": "TRUE",
+        "returnAllMatches": true,
+        "options": {}
       },
-      "id": "service-match",
+      "id": "get-staff",
+      "name": "Get Specialists",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [680, 560],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Beauty" }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Fuzzy service matching from user message\nconst userMsg = $('Normalize Message').item.json.message_text.toLowerCase();\nconst services = $('Get Services Catalog').all().map(s => s.json);\n\nfunction scoreService(service) {\n  const keywords = [\n    service.service_name?.toLowerCase(),\n    ...(service.alternate_names || '').toLowerCase().split(',').map(s => s.trim()),\n    ...(service.keywords || '').toLowerCase().split(',').map(s => s.trim()),\n  ].filter(Boolean);\n  \n  let score = 0;\n  let matched = [];\n  keywords.forEach(kw => {\n    if (userMsg.includes(kw)) {\n      score += kw.length;\n      matched.push(kw);\n    }\n  });\n  return { service, score, matchedKeywords: matched };\n}\n\nconst matches = services\n  .map(scoreService)\n  .filter(m => m.score > 0)\n  .sort((a, b) => b.score - a.score)\n  .slice(0, 3);\n\nconst isAmbiguous = matches.length > 1 && matches[1].score >= matches[0].score * 0.7;\n\nreturn [{\n  json: {\n    top_match: matches[0]?.service || null,\n    alternative_matches: matches.slice(1).map(m => m.service),\n    is_ambiguous: isAmbiguous,\n    needs_clarification: !matches[0] || isAmbiguous,\n  },\n}];"
+      },
+      "id": "code-service-match",
       "name": "Service Matcher",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [860, 380]
+      "position": [900, 400]
     },
     {
       "parameters": {
-        "documentId": "REPLACE_STAFF_SHEET_ID",
-        "sheetName": "Specialists"
+        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "messages": {
+          "values": [
+            {
+              "role": "system",
+              "content": "You are a warm receptionist at a beauty center. Reply in the same language as the user (Arabic, English, or mix).\n\nUsing the matched service and the client's history, write a natural reply that:\n- Confirms what service they want\n- Asks for preferred date/time if not clear\n- If client has a preferred specialist from past visits, offer them first\n- Mentions multi-branch options only if client is new\n- Brief, warm, professional\n\nReturn JSON:\n{\n  \"reply_to_user\": \"...\",\n  \"booking_ready\": <boolean>,\n  \"requested_service\": \"...\",\n  \"requested_specialist\": \"...\",\n  \"requested_date\": \"YYYY-MM-DD or null\",\n  \"requested_time\": \"HH:MM or null\"\n}"
+            },
+            {
+              "role": "user",
+              "content": "=Service matched: {{ JSON.stringify($('Service Matcher').item.json.top_match) }}\nIs ambiguous: {{ $('Service Matcher').item.json.is_ambiguous }}\nClient preferences: {{ JSON.stringify($('Get Client (with Preferences)').item?.json || {}) }}\n\nUser message: {{ $('Normalize Message').item.json.message_text }}"
+            }
+          ]
+        },
+        "options": { "temperature": 0.5, "responseFormat": "json_object" }
       },
-      "id": "get-specialists",
-      "name": "Get Specialists",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4,
-      "position": [1080, 240]
+      "id": "ai-conversation",
+      "name": "AI Conversation Manager",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.6,
+      "position": [1120, 400],
+      "credentials": {
+        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
+      }
     },
     {
       "parameters": {
         "operation": "getAll",
-        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" }
+        "calendar": { "__rl": true, "mode": "list", "value": "={{ $env.BEAUTY_CALENDAR_ID }}" },
+        "returnAll": false,
+        "limit": 100,
+        "timeMin": "={{ $now.toISO() }}",
+        "timeMax": "={{ $now.plus({ days: 7 }).toISO() }}",
+        "options": { "singleEvents": true, "orderBy": "startTime" }
       },
       "id": "get-cal",
       "name": "Get All Calendar Events",
       "type": "n8n-nodes-base.googleCalendar",
-      "typeVersion": 1,
-      "position": [1080, 380]
+      "typeVersion": 1.3,
+      "position": [1340, 280],
+      "credentials": {
+        "googleCalendarOAuth2Api": { "id": "REPLACE_CALENDAR_CREDENTIAL_ID", "name": "Google Calendar - Beauty" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 2: Specialist Matching with Availability\nreturn $input.all();"
+        "jsCode": "// Specialist matching + availability check\nconst aiResult = JSON.parse($('AI Conversation Manager').item.json.message.content);\nconst service = $('Service Matcher').item.json.top_match;\nconst specialists = $('Get Specialists').all().map(s => s.json);\nconst events = $input.all().map(e => e.json);\nconst client = $('Get Client (with Preferences)').item?.json || {};\n\nif (!aiResult.booking_ready || !service) {\n  return [{ json: { skip_booking: true, reply: aiResult.reply_to_user } }];\n}\n\n// Filter specialists qualified for this service\nconst qualified = specialists.filter(sp => {\n  const services = (sp.qualified_services || '').split(',').map(x => x.trim());\n  return services.includes(service.id) || services.includes('all');\n});\n\n// Prioritize client's preferred specialist if available\nconst preferredId = client.preferred_specialist;\nconst preferred = qualified.find(sp => sp.id === preferredId);\nconst orderedSpecialists = preferred ? [preferred, ...qualified.filter(sp => sp.id !== preferredId)] : qualified;\n\nconst DURATION = service.duration_minutes || 60;\n\nfunction getAvailableSlots(specialist) {\n  const slots = [];\n  const now = new Date();\n  const requestedDate = aiResult.requested_date ? new Date(aiResult.requested_date) : new Date(now.getTime() + 86400000);\n  \n  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {\n    const checkDate = new Date(requestedDate.getTime() + dayOffset * 86400000);\n    const dayStart = parseInt(specialist.shift_start || 10);\n    const dayEnd = parseInt(specialist.shift_end || 19);\n    \n    for (let hour = dayStart; hour < dayEnd - (DURATION / 60); hour++) {\n      for (let min = 0; min < 60; min += 30) {\n        const slotStart = new Date(checkDate);\n        slotStart.setHours(hour, min, 0, 0);\n        if (slotStart < new Date(now.getTime() + 30 * 60 * 1000)) continue;\n        \n        const slotEnd = new Date(slotStart.getTime() + DURATION * 60 * 1000);\n        \n        const conflict = events.some(e => {\n          if (e.calendarId && e.calendarId !== specialist.calendar_id) return false;\n          const eventStart = new Date(e.start.dateTime).getTime();\n          const eventEnd = new Date(e.end.dateTime).getTime();\n          return slotStart.getTime() < eventEnd && slotEnd.getTime() > eventStart;\n        });\n        \n        if (!conflict) {\n          slots.push({\n            start_iso: slotStart.toISOString(),\n            end_iso: slotEnd.toISOString(),\n            display: slotStart.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),\n          });\n          if (slots.length >= 3) return slots;\n        }\n      }\n    }\n  }\n  return slots;\n}\n\nconst withAvailability = orderedSpecialists.map(sp => ({\n  specialist: { id: sp.id, name: sp.name, rating: sp.rating },\n  available_slots: getAvailableSlots(sp),\n})).filter(x => x.available_slots.length > 0);\n\nreturn [{\n  json: {\n    skip_booking: withAvailability.length === 0,\n    recommended: withAvailability[0] || null,\n    alternatives: withAvailability.slice(1, 3),\n    reply: aiResult.reply_to_user,\n  },\n}];"
       },
-      "id": "specialist-match",
+      "id": "code-specialist",
       "name": "Specialist Match + Availability",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1300, 300]
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "conditions": [{
+            "leftValue": "={{ $json.skip_booking }}",
+            "rightValue": false,
+            "operator": { "type": "boolean", "operation": "false" }
+          }],
+          "combinator": "and"
+        }
+      },
+      "id": "if-book",
+      "name": "Should Book?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [1780, 400]
     },
     {
       "parameters": {
         "operation": "create",
-        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" }
+        "calendar": { "__rl": true, "mode": "list", "value": "={{ $env.BEAUTY_CALENDAR_ID }}" },
+        "start": "={{ $json.recommended.available_slots[0].start_iso }}",
+        "end": "={{ $json.recommended.available_slots[0].end_iso }}",
+        "additionalFields": {
+          "summary": "={{ $('Service Matcher').item.json.top_match.service_name }} - {{ $('Get Client (with Preferences)').item?.json?.name || 'New Client' }}",
+          "description": "=Specialist: {{ $json.recommended.specialist.name }}\\nChannel: {{ $('Normalize Message').item.json.channel }}"
+        }
       },
       "id": "create-booking",
       "name": "Create Booking",
       "type": "n8n-nodes-base.googleCalendar",
-      "typeVersion": 1,
-      "position": [1520, 240]
+      "typeVersion": 1.3,
+      "position": [2000, 280],
+      "credentials": {
+        "googleCalendarOAuth2Api": { "id": "REPLACE_CALENDAR_CREDENTIAL_ID", "name": "Google Calendar - Beauty" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 3: Update Client Preferences\nreturn $input.all();"
+        "operation": "appendOrUpdate",
+        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CLIENTS_SHEET_ID }}" },
+        "sheetName": { "__rl": true, "mode": "name", "value": "Clients" },
+        "columns": { "mappingMode": "autoMapInputData", "matchingColumns": ["user_id"] }
       },
       "id": "update-prefs",
       "name": "Update Client Preferences",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1740, 240]
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [2220, 280],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Beauty" }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// See code_examples.md Section 4: Smart Follow-up Scheduler\nreturn $input.all();"
+        "respondWith": "json",
+        "responseBody": "={ \"status\": \"ok\", \"reply\": \"{{ $('Specialist Match + Availability').item.json.reply }}\" }"
       },
-      "id": "schedule-followup",
-      "name": "Schedule Follow-ups",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [1740, 380]
+      "id": "respond",
+      "name": "Webhook Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [2440, 400]
     }
   ],
+  "pinData": {},
   "connections": {
-    "Multi-Channel Webhook": { "main": [[ { "node": "Normalize Message", "type": "main", "index": 0 } ]] },
-    "Normalize Message": { "main": [[ { "node": "Get Client Record", "type": "main", "index": 0 }, { "node": "Get Services Catalog", "type": "main", "index": 0 } ]] },
-    "Get Client Record": { "main": [[ { "node": "Service Matcher", "type": "main", "index": 0 } ]] },
-    "Get Services Catalog": { "main": [[ { "node": "Service Matcher", "type": "main", "index": 0 } ]] },
-    "Service Matcher": { "main": [[ { "node": "Get Specialists", "type": "main", "index": 0 }, { "node": "Get All Calendar Events", "type": "main", "index": 0 } ]] },
-    "Get Specialists": { "main": [[ { "node": "Specialist Match + Availability", "type": "main", "index": 0 } ]] },
-    "Get All Calendar Events": { "main": [[ { "node": "Specialist Match + Availability", "type": "main", "index": 0 } ]] },
-    "Specialist Match + Availability": { "main": [[ { "node": "Create Booking", "type": "main", "index": 0 } ]] },
-    "Create Booking": { "main": [[ { "node": "Update Client Preferences", "type": "main", "index": 0 }, { "node": "Schedule Follow-ups", "type": "main", "index": 0 } ]] }
+    "Multi-Channel Webhook": { "main": [[{ "node": "Normalize Message", "type": "main", "index": 0 }]] },
+    "Normalize Message": { "main": [[
+      { "node": "Get Client (with Preferences)", "type": "main", "index": 0 },
+      { "node": "Get Services Catalog", "type": "main", "index": 0 },
+      { "node": "Get Specialists", "type": "main", "index": 0 }
+    ]] },
+    "Get Client (with Preferences)": { "main": [[{ "node": "Service Matcher", "type": "main", "index": 0 }]] },
+    "Get Services Catalog": { "main": [[{ "node": "Service Matcher", "type": "main", "index": 0 }]] },
+    "Get Specialists": { "main": [[{ "node": "Service Matcher", "type": "main", "index": 0 }]] },
+    "Service Matcher": { "main": [[{ "node": "AI Conversation Manager", "type": "main", "index": 0 }]] },
+    "AI Conversation Manager": { "main": [[{ "node": "Get All Calendar Events", "type": "main", "index": 0 }]] },
+    "Get All Calendar Events": { "main": [[{ "node": "Specialist Match + Availability", "type": "main", "index": 0 }]] },
+    "Specialist Match + Availability": { "main": [[{ "node": "Should Book?", "type": "main", "index": 0 }]] },
+    "Should Book?": { "main": [
+      [{ "node": "Create Booking", "type": "main", "index": 0 }],
+      [{ "node": "Webhook Response", "type": "main", "index": 0 }]
+    ] },
+    "Create Booking": { "main": [[{ "node": "Update Client Preferences", "type": "main", "index": 0 }]] },
+    "Update Client Preferences": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] }
   },
   "active": false,
-  "settings": { "executionOrder": "v1" },
-  "tags": ["beauty", "salon", "multi-branch", "preference-tracking"]
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
+  },
+  "versionId": "v2.0.1-beauty-reception",
+  "id": "beauty-reception-v2",
+  "tags": [
+    { "name": "beauty", "id": "tag-beauty" },
+    { "name": "multi-branch", "id": "tag-multibranch" },
+    { "name": "production", "id": "tag-production" }
+  ]
 }
