@@ -1,0 +1,140 @@
+{
+  "name": "Beauty Center AI Reception - Multi-Service Multi-Branch",
+  "description": "Sanitized template of the beauty center reception workflow with service matching, specialist selection, and preference tracking.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "beauty-reception",
+        "responseMode": "lastNode"
+      },
+      "id": "webhook",
+      "name": "Multi-Channel Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Multi-channel normalizer (see clinic-booking-system code_examples Section 1)\nreturn $input.all();"
+      },
+      "id": "normalize",
+      "name": "Normalize Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_CLIENTS_SHEET_ID",
+        "sheetName": "Clients",
+        "filtersUI": {
+          "values": [{ "lookupColumn": "user_id", "lookupValue": "={{ $json.user_id }}" }]
+        }
+      },
+      "id": "get-client",
+      "name": "Get Client Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_CATALOG_SHEET_ID",
+        "sheetName": "Services"
+      },
+      "id": "get-services",
+      "name": "Get Services Catalog",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [640, 460]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 1: Service Matching from Natural Language\nreturn $input.all();"
+      },
+      "id": "service-match",
+      "name": "Service Matcher",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 380]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_STAFF_SHEET_ID",
+        "sheetName": "Specialists"
+      },
+      "id": "get-specialists",
+      "name": "Get Specialists",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1080, 240]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" }
+      },
+      "id": "get-cal",
+      "name": "Get All Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1080, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 2: Specialist Matching with Availability\nreturn $input.all();"
+      },
+      "id": "specialist-match",
+      "name": "Specialist Match + Availability",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" }
+      },
+      "id": "create-booking",
+      "name": "Create Booking",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1520, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 3: Update Client Preferences\nreturn $input.all();"
+      },
+      "id": "update-prefs",
+      "name": "Update Client Preferences",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 4: Smart Follow-up Scheduler\nreturn $input.all();"
+      },
+      "id": "schedule-followup",
+      "name": "Schedule Follow-ups",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 380]
+    }
+  ],
+  "connections": {
+    "Multi-Channel Webhook": { "main": [[ { "node": "Normalize Message", "type": "main", "index": 0 } ]] },
+    "Normalize Message": { "main": [[ { "node": "Get Client Record", "type": "main", "index": 0 }, { "node": "Get Services Catalog", "type": "main", "index": 0 } ]] },
+    "Get Client Record": { "main": [[ { "node": "Service Matcher", "type": "main", "index": 0 } ]] },
+    "Get Services Catalog": { "main": [[ { "node": "Service Matcher", "type": "main", "index": 0 } ]] },
+    "Service Matcher": { "main": [[ { "node": "Get Specialists", "type": "main", "index": 0 }, { "node": "Get All Calendar Events", "type": "main", "index": 0 } ]] },
+    "Get Specialists": { "main": [[ { "node": "Specialist Match + Availability", "type": "main", "index": 0 } ]] },
+    "Get All Calendar Events": { "main": [[ { "node": "Specialist Match + Availability", "type": "main", "index": 0 } ]] },
+    "Specialist Match + Availability": { "main": [[ { "node": "Create Booking", "type": "main", "index": 0 } ]] },
+    "Create Booking": { "main": [[ { "node": "Update Client Preferences", "type": "main", "index": 0 }, { "node": "Schedule Follow-ups", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["beauty", "salon", "multi-branch", "preference-tracking"]
+}

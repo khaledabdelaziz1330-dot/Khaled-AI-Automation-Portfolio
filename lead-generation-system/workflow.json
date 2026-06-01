@@ -1,0 +1,135 @@
+{
+  "name": "Lead Generation & AI Outreach Engine",
+  "description": "Sanitized template of the production lead generation pipeline. Replace credentials and Sheet IDs before deploying.",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1" }] } },
+      "id": "trigger",
+      "name": "Weekly Campaign Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "resource": "actor",
+        "operation": "run",
+        "actorId": "compass~crawler-google-places",
+        "runAsync": false,
+        "customBody": "={\n  \"searchStringsArray\": [\"{{ $env.TARGET_KEYWORDS }}\"],\n  \"locationQuery\": \"{{ $env.TARGET_LOCATION }}\",\n  \"maxCrawledPlacesPerSearch\": 100\n}"
+      },
+      "id": "apify-scrape",
+      "name": "Apify Google Maps Scraper",
+      "type": "n8n-nodes-base.apify",
+      "typeVersion": 1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_LEADS_DB_SHEET_ID",
+        "sheetName": "Leads",
+        "options": {}
+      },
+      "id": "get-existing",
+      "name": "Get Existing Leads",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [640, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 1: Lead Deduplication\nreturn $input.all();"
+      },
+      "id": "dedup",
+      "name": "Deduplicate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 2: ZeroBounce Verification with Retry\nreturn $input.all();"
+      },
+      "id": "verify-email",
+      "name": "Verify Emails",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [{ "value1": "={{ $json.should_send }}", "value2": true }]
+        }
+      },
+      "id": "filter-verified",
+      "name": "Filter Verified",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "Write personalized cold outreach emails. Max 80 words. Return JSON: {subject, body, personalization_signal}." }
+          ]
+        },
+        "options": { "temperature": 0.7, "responseFormat": "json_object" }
+      },
+      "id": "ai-email",
+      "name": "AI Personalization",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [1520, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 4: Approval Queue Builder\nreturn $input.all();"
+      },
+      "id": "build-approval",
+      "name": "Build Approval Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 240]
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "REPLACE_APPROVALS_SHEET_ID",
+        "sheetName": "PendingApprovals"
+      },
+      "id": "queue-approval",
+      "name": "Queue for Approval",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1960, 240]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $env.APPROVAL_TELEGRAM_CHAT_ID }}",
+        "text": "=*New outreach for approval*\\n\\n*To:* {{ $json.lead.business_name }}\\n*Email:* {{ $json.email.to }}\\n*Subject:* {{ $json.email.subject }}\\n\\n{{ $json.email.body }}\\n\\nApprove: {{ $json.approval_actions.approve_url }}\\nEdit: {{ $json.approval_actions.edit_url }}\\nReject: {{ $json.approval_actions.reject_url }}"
+      },
+      "id": "send-telegram",
+      "name": "Send Approval Request",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1,
+      "position": [2180, 240]
+    }
+  ],
+  "connections": {
+    "Weekly Campaign Trigger": { "main": [[ { "node": "Apify Google Maps Scraper", "type": "main", "index": 0 } ]] },
+    "Apify Google Maps Scraper": { "main": [[ { "node": "Get Existing Leads", "type": "main", "index": 0 } ]] },
+    "Get Existing Leads": { "main": [[ { "node": "Deduplicate", "type": "main", "index": 0 } ]] },
+    "Deduplicate": { "main": [[ { "node": "Verify Emails", "type": "main", "index": 0 } ]] },
+    "Verify Emails": { "main": [[ { "node": "Filter Verified", "type": "main", "index": 0 } ]] },
+    "Filter Verified": { "main": [[ { "node": "AI Personalization", "type": "main", "index": 0 } ]] },
+    "AI Personalization": { "main": [[ { "node": "Build Approval Record", "type": "main", "index": 0 } ]] },
+    "Build Approval Record": { "main": [[ { "node": "Queue for Approval", "type": "main", "index": 0 }, { "node": "Send Approval Request", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["lead-generation", "cold-outreach", "human-in-loop"]
+}

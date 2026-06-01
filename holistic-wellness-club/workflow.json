@@ -1,0 +1,123 @@
+{
+  "name": "Holistic Wellness Club - GHL Event Logger",
+  "description": "Sanitized template of the n8n backend brain for the GHL-powered wellness club system.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ghl-webhook",
+        "responseMode": "lastNode"
+      },
+      "id": "ghl-webhook",
+      "name": "GHL Webhook Receiver",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 1: GHL Event Normalizer\nreturn $input.all();"
+      },
+      "id": "normalize",
+      "name": "Normalize Event",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_EVENTS_SHEET_ID",
+        "sheetName": "Bookings_Log",
+        "filtersUI": {
+          "values": [{ "lookupColumn": "event_id", "lookupValue": "={{ $json.event_id }}" }]
+        }
+      },
+      "id": "get-recent",
+      "name": "Get Recent Events",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 2: Idempotent Event Logger\nreturn $input.all();"
+      },
+      "id": "idem-check",
+      "name": "Idempotency Check",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "string": [{ "value1": "={{ $json._idempotency }}", "operation": "notEqual", "value2": "duplicate_skipped" }] }
+      },
+      "id": "not-dup",
+      "name": "Not Duplicate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "string": [{ "value1": "={{ $json.event_type }}", "value2": "booking.created" }] }, "outputKey": "booking" },
+            { "conditions": { "string": [{ "value1": "={{ $json.event_type }}", "value2": "lead.created" }] }, "outputKey": "lead" },
+            { "conditions": { "string": [{ "value1": "={{ $json.event_type }}", "value2": "appointment.created" }] }, "outputKey": "appointment" }
+          ]
+        }
+      },
+      "id": "route",
+      "name": "Route by Event Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1300, 240]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_EVENTS_SHEET_ID",
+        "sheetName": "Bookings_Log"
+      },
+      "id": "log-booking",
+      "name": "Log Booking Event",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1520, 180]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_EVENTS_SHEET_ID",
+        "sheetName": "Leads_Log"
+      },
+      "id": "log-lead",
+      "name": "Log Lead Event",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1520, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 4: Tiered Reminder Builder\nreturn $input.all();"
+      },
+      "id": "build-reminders",
+      "name": "Build Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 420]
+    }
+  ],
+  "connections": {
+    "GHL Webhook Receiver": { "main": [[ { "node": "Normalize Event", "type": "main", "index": 0 } ]] },
+    "Normalize Event": { "main": [[ { "node": "Get Recent Events", "type": "main", "index": 0 } ]] },
+    "Get Recent Events": { "main": [[ { "node": "Idempotency Check", "type": "main", "index": 0 } ]] },
+    "Idempotency Check": { "main": [[ { "node": "Not Duplicate", "type": "main", "index": 0 } ]] },
+    "Not Duplicate": { "main": [[ { "node": "Route by Event Type", "type": "main", "index": 0 } ]] },
+    "Route by Event Type": { "main": [[ { "node": "Log Booking Event", "type": "main", "index": 0 } ], [ { "node": "Log Lead Event", "type": "main", "index": 0 } ], [ { "node": "Build Reminders", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["ghl-integration", "event-sourcing", "wellness"]
+}

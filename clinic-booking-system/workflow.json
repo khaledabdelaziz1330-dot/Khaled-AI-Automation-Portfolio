@@ -1,0 +1,223 @@
+{
+  "name": "Clinic AI Receptionist - Multi-Channel Booking",
+  "description": "Sanitized template representing the production clinic receptionist workflow. Replace credential references and Sheet IDs with your own before deploying.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "clinic-receptionist",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-multi-channel",
+      "name": "Multi-Channel Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md - Section 1: Multi-Channel Message Normalizer\n// Detects channel and normalizes payload into unified schema\nreturn $input.all();"
+      },
+      "id": "normalize-message",
+      "name": "Normalize Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300],
+      "notes": "Channel detection + payload normalization. Full code in code_examples.md."
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": "REPLACE_WITH_YOUR_SHEET_ID",
+        "sheetName": "Conversations",
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $now.toISO() }}",
+            "user_id": "={{ $json.user_id }}",
+            "channel": "={{ $json.channel }}",
+            "direction": "inbound",
+            "message_text": "={{ $json.message_text }}"
+          }
+        }
+      },
+      "id": "log-inbound",
+      "name": "Log Inbound Message",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [680, 200],
+      "credentials": {
+        "googleSheetsOAuth2Api": { "id": "REPLACE", "name": "Google Sheets" }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_WITH_YOUR_SHEET_ID",
+        "sheetName": "Conversations",
+        "filtersUI": {
+          "values": [{ "lookupColumn": "user_id", "lookupValue": "={{ $('Normalize Message').first().json.user_id }}" }]
+        },
+        "options": { "returnAllMatches": true }
+      },
+      "id": "get-history",
+      "name": "Get Conversation History",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [680, 400]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "You are an intent classifier. Return ONE of: BOOKING_REQUEST | FAQ | CANCELLATION | GREETING | COMPLAINT | OTHER. Return only the label." },
+            { "role": "user", "content": "={{ $('Normalize Message').first().json.message_text }}" }
+          ]
+        },
+        "options": { "temperature": 0, "maxTokens": 10 }
+      },
+      "id": "intent-classifier",
+      "name": "Intent Classifier",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            { "conditions": { "string": [{ "value1": "={{ $json.message.content }}", "value2": "BOOKING_REQUEST" }] }, "renameOutput": true, "outputKey": "booking" },
+            { "conditions": { "string": [{ "value1": "={{ $json.message.content }}", "value2": "FAQ" }] }, "renameOutput": true, "outputKey": "faq" },
+            { "conditions": { "string": [{ "value1": "={{ $json.message.content }}", "value2": "GREETING" }] }, "renameOutput": true, "outputKey": "greeting" }
+          ]
+        },
+        "fallbackOutput": "extra"
+      },
+      "id": "intent-router",
+      "name": "Route by Intent",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "Extract booking details as JSON. Required fields: name, phone, service, preferred_date (YYYY-MM-DD), preferred_time (HH:MM). Return null for missing fields." },
+            { "role": "user", "content": "={{ $('Normalize Message').first().json.message_text }}" }
+          ]
+        },
+        "options": { "temperature": 0, "responseFormat": "json_object" }
+      },
+      "id": "extract-booking",
+      "name": "Extract Booking Details",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [1340, 200]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" },
+        "timeMin": "={{ $now.toISO() }}",
+        "timeMax": "={{ $now.plus({ days: 14 }).toISO() }}"
+      },
+      "id": "get-calendar",
+      "name": "Get Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md - Section 4: Calendar Availability Check\n// Deterministic slot computation. AI NEVER does this.\nreturn $input.all();"
+      },
+      "id": "availability-check",
+      "name": "Check Availability",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1780, 200],
+      "notes": "Deterministic slot finder. Full implementation in code_examples.md."
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" },
+        "start": "={{ $json.confirmed_slot.start }}",
+        "end": "={{ $json.confirmed_slot.end }}",
+        "summary": "={{ $json.service }} - {{ $json.patient_name }}",
+        "description": "Booking from {{ $('Normalize Message').first().json.channel }}\\nPhone: {{ $json.phone }}"
+      },
+      "id": "create-booking",
+      "name": "Create Calendar Booking",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [2000, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md - Section 6: Reminder Scheduler\nreturn $input.all();"
+      },
+      "id": "schedule-reminders",
+      "name": "Schedule Reminders",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2220, 200]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "You are a friendly clinic receptionist. Confirm the booking warmly in the same language as the user. Include the date, time, and service." },
+            { "role": "user", "content": "Booking details: {{ JSON.stringify($json) }}" }
+          ]
+        }
+      },
+      "id": "generate-confirmation",
+      "name": "Generate Confirmation Reply",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [2440, 200]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Channel-specific sender — routes the reply back through the original channel\n// WhatsApp, Instagram, Messenger, Telegram each have different send APIs\nreturn $input.all();"
+      },
+      "id": "send-reply",
+      "name": "Send Reply",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2660, 200]
+    }
+  ],
+  "connections": {
+    "Multi-Channel Webhook": { "main": [[ { "node": "Normalize Message", "type": "main", "index": 0 } ]] },
+    "Normalize Message": { "main": [[ { "node": "Log Inbound Message", "type": "main", "index": 0 }, { "node": "Get Conversation History", "type": "main", "index": 0 } ]] },
+    "Get Conversation History": { "main": [[ { "node": "Intent Classifier", "type": "main", "index": 0 } ]] },
+    "Intent Classifier": { "main": [[ { "node": "Route by Intent", "type": "main", "index": 0 } ]] },
+    "Route by Intent": { "main": [[ { "node": "Extract Booking Details", "type": "main", "index": 0 } ]] },
+    "Extract Booking Details": { "main": [[ { "node": "Get Calendar Events", "type": "main", "index": 0 } ]] },
+    "Get Calendar Events": { "main": [[ { "node": "Check Availability", "type": "main", "index": 0 } ]] },
+    "Check Availability": { "main": [[ { "node": "Create Calendar Booking", "type": "main", "index": 0 } ]] },
+    "Create Calendar Booking": { "main": [[ { "node": "Schedule Reminders", "type": "main", "index": 0 }, { "node": "Generate Confirmation Reply", "type": "main", "index": 0 } ]] },
+    "Generate Confirmation Reply": { "main": [[ { "node": "Send Reply", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "tags": ["healthcare", "ai-receptionist", "multi-channel"],
+  "_meta": {
+    "description": "Sanitized template. Replace REPLACE_* placeholders with real Sheet IDs and credential IDs before importing. Full setup guide in setup.md."
+  }
+}
