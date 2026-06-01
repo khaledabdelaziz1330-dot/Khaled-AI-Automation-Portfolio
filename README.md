@@ -19,13 +19,25 @@ Every workflow I build is designed with structured logging, error monitoring, re
 
 ## How to read this portfolio
 
-Each project folder contains:
+### Repository-level documents
+
+- **[`PATTERNS.md`](./PATTERNS.md)** — Cross-cutting engineering patterns that appear across all systems (read this first to understand my approach)
+- **[`SECURITY.md`](./SECURITY.md)** — How sensitive data is handled across the portfolio
+- **[`LICENSE`](./LICENSE)** — MIT, with note on sanitized workflow templates
+
+### Each project folder contains:
 
 - **`README.md`** — what the system does, impact metrics, tech stack
 - **`architecture.md`** — system design with Mermaid diagrams, design decisions, data model, failure modes
 - **`code_examples.md`** — production JavaScript code samples from the actual workflow
-- **`workflow.json`** — sanitized n8n workflow export (importable to any n8n instance after credential replacement)
+- **`workflow.json`** — sanitized n8n workflow template (architecturally accurate, importable after credential replacement)
+- **`PERFORMANCE.md`** — production performance metrics, cost analysis, reliability data, scale limits
 - **Workflow diagram image** — visual representation of the n8n graph
+
+### Selected projects also include:
+
+- **`setup.md`** — full deployment guide (currently in clinic-booking-system)
+- **`examples/`** — sanitized sample conversations, error reports, and KPI dashboards from real production (currently in clinic-booking-system)
 
 Code samples follow real production patterns: error handling, retry logic, idempotency, sanitization, validation. They are sanitized of client-specific data but otherwise show the actual approach used.
 
