@@ -1,0 +1,145 @@
+{
+  "name": "Document Automation - PDF to Excel",
+  "description": "Sanitized template of the construction document processing workflow. Core principle: AI for language, code for math.",
+  "nodes": [
+    {
+      "parameters": {
+        "filters": { "from": "={{ $env.ALLOWED_SENDERS }}", "subjectContains": "Spec PDF" },
+        "options": { "downloadAttachments": true }
+      },
+      "id": "email-trigger",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "binaryPropertyName": "attachment_0",
+        "options": { "joinPages": true }
+      },
+      "id": "pdf-extract",
+      "name": "Extract PDF Text",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 1: PDF Text Extraction with Structure\nreturn $input.all();"
+      },
+      "id": "pdf-parser",
+      "name": "Structured PDF Parser",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "Extract construction items as JSON. Numbers AS WRITTEN. Do NOT calculate. See code_examples.md for full prompt." }
+          ]
+        },
+        "options": { "temperature": 0, "responseFormat": "json_object" }
+      },
+      "id": "ai-extract",
+      "name": "AI Rule Extraction",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 3: Deterministic Calculation Engine\n// ALL arithmetic here. AI never does math.\nreturn $input.all();"
+      },
+      "id": "calc-engine",
+      "name": "Calculation Engine",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 4: Duplicate Detection\nreturn $input.all();"
+      },
+      "id": "dup-detect",
+      "name": "Duplicate Detection",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 5: QA Report Generation\nreturn $input.all();"
+      },
+      "id": "qa-report",
+      "name": "Generate QA Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1520, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "number": [{ "value1": "={{ $json.quality_score }}", "operation": "largerEqual", "value2": 70 }] }
+      },
+      "id": "quality-gate",
+      "name": "Quality Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1740, 300]
+    },
+    {
+      "parameters": {
+        "operation": "writeFile",
+        "fileName": "spec_output_{{ $now.toFormat('yyyyMMdd_HHmmss') }}.xlsx"
+      },
+      "id": "excel-gen",
+      "name": "Generate Excel",
+      "type": "n8n-nodes-base.spreadsheetFile",
+      "typeVersion": 2,
+      "position": [1960, 240]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $('Gmail Trigger').first().json.from }}",
+        "subject": "Processed Spec: {{ $now.toFormat('yyyy-MM-dd') }}",
+        "message": "=Quality Score: {{ $('Generate QA Report').first().json.quality_score }}%\\n\\nSee attached Excel and QA report."
+      },
+      "id": "send-result",
+      "name": "Send to Recipient",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [2180, 240]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_RUNS_LOG_SHEET_ID",
+        "sheetName": "ProcessingLog"
+      },
+      "id": "log-run",
+      "name": "Log Run",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [2180, 360]
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": { "main": [[ { "node": "Extract PDF Text", "type": "main", "index": 0 } ]] },
+    "Extract PDF Text": { "main": [[ { "node": "Structured PDF Parser", "type": "main", "index": 0 } ]] },
+    "Structured PDF Parser": { "main": [[ { "node": "AI Rule Extraction", "type": "main", "index": 0 } ]] },
+    "AI Rule Extraction": { "main": [[ { "node": "Calculation Engine", "type": "main", "index": 0 } ]] },
+    "Calculation Engine": { "main": [[ { "node": "Duplicate Detection", "type": "main", "index": 0 } ]] },
+    "Duplicate Detection": { "main": [[ { "node": "Generate QA Report", "type": "main", "index": 0 } ]] },
+    "Generate QA Report": { "main": [[ { "node": "Quality Gate", "type": "main", "index": 0 } ]] },
+    "Quality Gate": { "main": [[ { "node": "Generate Excel", "type": "main", "index": 0 }, { "node": "Log Run", "type": "main", "index": 0 } ]] },
+    "Generate Excel": { "main": [[ { "node": "Send to Recipient", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["document-automation", "pdf-processing", "deterministic-calculations"]
+}

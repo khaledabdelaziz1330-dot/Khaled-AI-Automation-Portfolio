@@ -1,0 +1,124 @@
+{
+  "name": "Gym Lead Management - Pipeline Automation",
+  "description": "Sanitized template of the gym lead pipeline with AI qualification and trial booking.",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "gym-leads",
+        "responseMode": "lastNode"
+      },
+      "id": "webhook",
+      "name": "Multi-Channel Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Multi-channel normalizer (see clinic-booking-system code_examples Section 1)\nreturn $input.all();"
+      },
+      "id": "normalize",
+      "name": "Normalize Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_LEADS_SHEET_ID",
+        "sheetName": "Leads",
+        "filtersUI": {
+          "values": [{ "lookupColumn": "user_id", "lookupValue": "={{ $json.user_id }}" }]
+        }
+      },
+      "id": "get-lead",
+      "name": "Get Lead Record",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [640, 300]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "You are a friendly gym receptionist gathering qualification. See code_examples.md Section 1 for full prompt." }
+          ]
+        },
+        "options": { "temperature": 0.5, "responseFormat": "json_object" }
+      },
+      "id": "ai-qualify",
+      "name": "AI Qualifier",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [860, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 2: Lead Status Manager\nreturn $input.all();"
+      },
+      "id": "status-mgr",
+      "name": "Update Pipeline Status",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 300]
+    },
+    {
+      "parameters": {
+        "conditions": { "boolean": [{ "value1": "={{ $json.ready_to_book }}", "value2": true }] }
+      },
+      "id": "ready-check",
+      "name": "Ready to Book?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1300, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" }
+      },
+      "id": "get-cal",
+      "name": "Get Calendar Events",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1520, 240]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 3: Trial Class Booking Logic\nreturn $input.all();"
+      },
+      "id": "find-slots",
+      "name": "Find Available Slots",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1740, 240]
+    },
+    {
+      "parameters": {
+        "operation": "create",
+        "calendar": { "__rl": true, "value": "REPLACE_CALENDAR_ID", "mode": "id" }
+      },
+      "id": "create-trial",
+      "name": "Book Trial Class",
+      "type": "n8n-nodes-base.googleCalendar",
+      "typeVersion": 1,
+      "position": [1960, 240]
+    }
+  ],
+  "connections": {
+    "Multi-Channel Webhook": { "main": [[ { "node": "Normalize Message", "type": "main", "index": 0 } ]] },
+    "Normalize Message": { "main": [[ { "node": "Get Lead Record", "type": "main", "index": 0 } ]] },
+    "Get Lead Record": { "main": [[ { "node": "AI Qualifier", "type": "main", "index": 0 } ]] },
+    "AI Qualifier": { "main": [[ { "node": "Update Pipeline Status", "type": "main", "index": 0 } ]] },
+    "Update Pipeline Status": { "main": [[ { "node": "Ready to Book?", "type": "main", "index": 0 } ]] },
+    "Ready to Book?": { "main": [[ { "node": "Get Calendar Events", "type": "main", "index": 0 } ]] },
+    "Get Calendar Events": { "main": [[ { "node": "Find Available Slots", "type": "main", "index": 0 } ]] },
+    "Find Available Slots": { "main": [[ { "node": "Book Trial Class", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["gym", "lead-management", "trial-booking"]
+}

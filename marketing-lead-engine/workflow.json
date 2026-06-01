@@ -1,0 +1,109 @@
+{
+  "name": "Marketing Content Engine - Permission Based",
+  "description": "Sanitized template of the RSS-driven content engine with author permission requirement.",
+  "nodes": [
+    {
+      "parameters": { "rule": { "interval": [{ "field": "hours", "expression": "6" }] } },
+      "id": "trigger",
+      "name": "6-Hour Scan",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{ $env.RSS_FEED_URLS }}",
+        "options": {}
+      },
+      "id": "rss-read",
+      "name": "Read RSS Feeds",
+      "type": "n8n-nodes-base.rssFeedRead",
+      "typeVersion": 1,
+      "position": [420, 300]
+    },
+    {
+      "parameters": {
+        "documentId": "REPLACE_SEEN_ARTICLES_SHEET_ID",
+        "sheetName": "SeenArticles"
+      },
+      "id": "get-seen",
+      "name": "Get Seen Articles",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [420, 460]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 1: RSS Aggregation & Dedup\nreturn $input.all();"
+      },
+      "id": "dedup",
+      "name": "Dedupe Articles",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 380]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "model": "gpt-4o",
+        "messages": {
+          "values": [
+            { "role": "system", "content": "Rewrite article as LinkedIn post. Max 300 words. Preserve facts. Return JSON with linkedin_post, facts_preserved, rewrite_notes." }
+          ]
+        },
+        "options": { "temperature": 0.7, "responseFormat": "json_object" }
+      },
+      "id": "ai-rewrite",
+      "name": "AI Content Rewrite",
+      "type": "n8n-nodes-langchain.openAi",
+      "typeVersion": 1,
+      "position": [860, 380]
+    },
+    {
+      "parameters": {
+        "jsCode": "// See code_examples.md Section 3: Permission Request Builder\nreturn $input.all();"
+      },
+      "id": "build-request",
+      "name": "Build Permission Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1080, 380]
+    },
+    {
+      "parameters": {
+        "sendTo": "={{ $json.author_email }}",
+        "subject": "={{ $json.subject }}",
+        "message": "={{ $json.body }}"
+      },
+      "id": "send-permission",
+      "name": "Send Permission Email",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2,
+      "position": [1300, 380]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": "REPLACE_REQUESTS_SHEET_ID",
+        "sheetName": "PermissionRequests"
+      },
+      "id": "log-request",
+      "name": "Log Permission Request",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4,
+      "position": [1520, 380]
+    }
+  ],
+  "connections": {
+    "6-Hour Scan": { "main": [[ { "node": "Read RSS Feeds", "type": "main", "index": 0 }, { "node": "Get Seen Articles", "type": "main", "index": 0 } ]] },
+    "Read RSS Feeds": { "main": [[ { "node": "Dedupe Articles", "type": "main", "index": 0 } ]] },
+    "Get Seen Articles": { "main": [[ { "node": "Dedupe Articles", "type": "main", "index": 0 } ]] },
+    "Dedupe Articles": { "main": [[ { "node": "AI Content Rewrite", "type": "main", "index": 0 } ]] },
+    "AI Content Rewrite": { "main": [[ { "node": "Build Permission Request", "type": "main", "index": 0 } ]] },
+    "Build Permission Request": { "main": [[ { "node": "Send Permission Email", "type": "main", "index": 0 } ]] },
+    "Send Permission Email": { "main": [[ { "node": "Log Permission Request", "type": "main", "index": 0 } ]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "tags": ["content-marketing", "permission-based", "ethical-ai"]
+}
