@@ -75,10 +75,6 @@ The single most important architectural choice in this system:
 - [`workflow.json`](./workflow.json) — sanitized n8n workflow export, importable to any n8n instance
 - [`clinic workflow.jpg`](./clinic%20workflow.jpg) — visual workflow diagram
 
-## Demo
-
-Loom walkthrough of the full system: [https://www.loom.com/share/5e571af3da7c41edb6a80c1c5604876d](https://www.loom.com/share/5e571af3da7c41edb6a80c1c5604876d)
-
 ## License & Use
 
 This is a portfolio project showcasing production architecture patterns. The workflow JSON is sanitized of client data. The patterns and code shown here can be adapted for your own clinic, medical practice, or service business automation needs.
