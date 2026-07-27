@@ -1,10 +1,10 @@
 # Khaled Abdelaziz — AI Engineer
 
-AI Engineer at **Quara Holding**, building production AI for a multinational group whose brands include Tadawul-listed **Dar Al Arkan** and LSE-listed **Dar Global**.
+AI Engineer at **Quara Holding** — a multinational group spanning real estate, fintech, and digital assets, home to Tadawul-listed **Dar Al Arkan** and LSE-listed **Dar Global**. I build and operate the AI layer behind the group's international operations: production AI agents, LLM pipelines, and enterprise workflow automation.
 
-This repository documents **ten production systems** I designed and shipped — autonomous engagement agents, LLM pipelines, document automation, and full CRM ecosystems. Each comes with architecture docs, production code samples, sanitized workflow JSON, and performance data.
+This repository documents **ten production systems** I have designed and shipped — autonomous engagement agents, intelligence pipelines, document automation, and full CRM ecosystems. Each is documented to enterprise standards: architecture documentation, production code samples, sanitized workflow templates, and performance data.
 
-They all share one property: **they run without me.** Error handling, monitoring, retries, and duplicate protection are part of the design — because an automation you have to babysit isn't automation.
+All of them are engineered to the same bar: structured error handling, monitoring and alerting, idempotent operations, duplicate protection, and controlled failure recovery. **Reliability and observability are treated as design requirements** — these systems run unattended in production.
 
 ---
 
