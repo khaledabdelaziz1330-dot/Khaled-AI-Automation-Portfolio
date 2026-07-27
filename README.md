@@ -1,10 +1,10 @@
 # Khaled Abdelaziz — AI Engineer
 
-**I build systems that run themselves** — autonomous AI agents, LLM pipelines, and end-to-end automations that operate unattended in production.
+AI Engineer at **Quara Holding**, building production AI for a multinational group whose brands include Tadawul-listed **Dar Al Arkan** and LSE-listed **Dar Global**.
 
-Today, that means engineering the AI layer of a multinational holding group whose brands include **Tadawul-listed Dar Al Arkan** and **LSE-listed Dar Global**. Before that: hosting companies, agencies, and clinics across Europe and MENA.
+This repository documents **ten production systems** I designed and shipped — autonomous engagement agents, LLM pipelines, document automation, and full CRM ecosystems. Each comes with architecture docs, production code samples, sanitized workflow JSON, and performance data.
 
-Ten fully documented systems below — every one ships with error handling, monitoring, and duplicate protection built in from the first node.
+They all share one property: **they run without me.** Error handling, monitoring, retries, and duplicate protection are part of the design — because an automation you have to babysit isn't automation.
 
 ---
 
