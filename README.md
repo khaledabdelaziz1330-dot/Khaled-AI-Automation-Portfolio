@@ -8,7 +8,7 @@
 
 AI Engineer at **Quara Holding** — a multinational group spanning real estate, fintech, and digital assets, whose ecosystem includes **Tadawul-listed Dar Al Arkan, LSE-listed Dar Global**, and proptech platform **Wasalt**, operating across the GCC and Europe. I design and ship production systems end to end: AI agents, RAG workflows, integration pipelines, and CRM ecosystems built on n8n, LLM APIs (Claude, GPT, Gemini, AWS Bedrock), and GoHighLevel — accelerated by AI-assisted development (Claude Code, Cursor).
 
-Every system here is designed with structured logging, error monitoring, retry logic, duplicate protection, and safe human handover — **systems that run reliably in production.** Bilingual Arabic/English.
+Every system here is designed with structured logging, error monitoring, retry logic, duplicate protection, and safe human handover — **systems that run reliably in production.** Systems delivered in English and Arabic as needed.
 
 **Currently:** AI Engineer at **Quara Holding** (Multinational — Real Estate, Fintech & Digital Assets)
 **Previously:** AI Automation Engineer at **Hostzera** (Web Hosting, Netherlands) · **OMB** (Marketing Agency, Netherlands)
