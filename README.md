@@ -1,8 +1,6 @@
-# AI Engineer | Production AI Agents, Automation Systems & LLM Workflows
+# Khaled Abdelaziz — AI Engineer
 
-Building the AI and automation layer for businesses from multinational groups to clinics — AI agents, LLM pipelines, and workflow systems that run reliably in production.
-
-**Currently available for freelance and contract automation projects.**
+**I build AI systems that run unattended in production** — autonomous agents, LLM pipelines, and end-to-end automation systems, currently for a multinational holding group whose brands include Tadawul-listed Dar Al Arkan and LSE-listed Dar Global. Ten fully documented systems below — every one shipped with error handling, monitoring, and duplicate protection as first-class features, not afterthoughts.
 
 ---
 
@@ -13,7 +11,7 @@ AI Engineer at **Quara Holding** — a multinational group spanning real estate,
 Every system here is designed with structured logging, error monitoring, retry logic, duplicate protection, and safe human handover — **not demos, but systems that run reliably in production.** Bilingual Arabic/English.
 
 **Currently:** AI Engineer at **Quara Holding** (Multinational — Real Estate, Fintech & Digital Assets)
-**Previously:** AI Automation Engineer at **Hostzera** (Web Hosting) · **OMB** (Marketing Agency, Netherlands)
+**Previously:** AI Automation Engineer at **Hostzera** (Web Hosting, Netherlands) · **OMB** (Marketing Agency, Netherlands)
 
 ---
 
@@ -88,7 +86,7 @@ Scraper + Commenter workflows sharing one Google Sheet as queue, status tracker,
 
 ![hostzera chat widget](./hostzera-chat-widget/chat-widget-workflow.png)
 
-AI-driven customer support and sales assistant for **Hostzera** (web hosting platform). Retrieves structured service data from Google Sheets, processes it through a custom retrieval layer, and feeds it into an AI agent with conversation memory. Multi-language support, automatic page linking, and **zero hallucination through retrieval-only responses**.
+AI-driven customer support and sales assistant for **Hostzera** (web hosting platform, Netherlands). Retrieves structured service data from Google Sheets, processes it through a custom retrieval layer, and feeds it into an AI agent with conversation memory. Multi-language support, automatic page linking, and **zero hallucination through retrieval-only responses**.
 
 **Impact:**
 - 24/7 instant responses — visitors get accurate answers without waiting for a human
