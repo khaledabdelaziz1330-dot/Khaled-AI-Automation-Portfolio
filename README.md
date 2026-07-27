@@ -1,6 +1,10 @@
 # Khaled Abdelaziz — AI Engineer
 
-**I build AI systems that run unattended in production** — autonomous agents, LLM pipelines, and end-to-end automation systems, currently for a multinational holding group whose brands include Tadawul-listed Dar Al Arkan and LSE-listed Dar Global. Ten fully documented systems below — every one shipped with error handling, monitoring, and duplicate protection as first-class features, not afterthoughts.
+**I build systems that run themselves** — autonomous AI agents, LLM pipelines, and end-to-end automations that operate unattended in production.
+
+Today, that means engineering the AI layer of a multinational holding group whose brands include **Tadawul-listed Dar Al Arkan** and **LSE-listed Dar Global**. Before that: hosting companies, agencies, and clinics across Europe and MENA.
+
+Ten fully documented systems below — every one ships with error handling, monitoring, and duplicate protection built in from the first node.
 
 ---
 
