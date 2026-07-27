@@ -1,6 +1,6 @@
-# AI Automation Engineer | n8n, GoHighLevel, APIs & Workflow Systems
+# AI Engineer | Production AI Agents, Automation Systems & LLM Workflows
 
-Building end-to-end automation systems for marketing agencies, web hosting, clinics, and service businesses.
+Building the AI and automation layer for businesses from multinational groups to clinics — AI agents, LLM pipelines, and workflow systems that run reliably in production.
 
 **Currently available for freelance and contract automation projects.**
 
@@ -8,12 +8,12 @@ Building end-to-end automation systems for marketing agencies, web hosting, clin
 
 ## Profile
 
-AI Automation Engineer with 2 years of experience building production-ready workflow systems using n8n (self-hosted), GoHighLevel, and API integrations. Transitioned from clinical dentistry — where I saw daily how much time was lost to scheduling, follow-ups, and repetitive patient inquiries — and built my first AI system to fix it: a multi-channel receptionist handling 90%+ of clinic inquiries without human intervention. Then expanded into marketing agencies, fitness, beauty, web hosting, and service businesses.
+AI Engineer at **Quara Holding** — a multinational group spanning real estate, fintech, and digital assets, whose ecosystem includes **Tadawul-listed Dar Al Arkan, LSE-listed Dar Global**, and proptech platform **Wasalt**, operating across the GCC and Europe. I design and ship production systems end to end: AI agents, RAG workflows, integration pipelines, and CRM ecosystems built on n8n, LLM APIs (Claude, GPT, Gemini, AWS Bedrock), and GoHighLevel — accelerated by AI-assisted development (Claude Code, Cursor).
 
-Every workflow I build is designed with structured logging, error monitoring, retry logic, and safe human handover — not just demos, but systems that run reliably in production.
+Every system here is designed with structured logging, error monitoring, retry logic, duplicate protection, and safe human handover — **not demos, but systems that run reliably in production.** Bilingual Arabic/English.
 
-**Currently:** AI Automation Engineer at **Hostzera** (Web Hosting & Marketing)
-**Previously:** AI Automation Engineer at **OMB** (Marketing Agency, Netherlands)
+**Currently:** AI Engineer at **Quara Holding** (Multinational — Real Estate, Fintech & Digital Assets)
+**Previously:** AI Automation Engineer at **Hostzera** (Web Hosting) · **OMB** (Marketing Agency, Netherlands)
 
 ---
 
@@ -39,13 +39,49 @@ Every workflow I build is designed with structured logging, error monitoring, re
 - **`setup.md`** — full deployment guide (currently in clinic-booking-system)
 - **`examples/`** — sanitized sample conversations, error reports, and KPI dashboards from real production (currently in clinic-booking-system)
 
-Code samples follow real production patterns: error handling, retry logic, idempotency, sanitization, validation. They are sanitized of client-specific data but otherwise show the actual approach used.
+Code samples follow real production patterns: error handling, retry logic, idempotency, sanitization, validation. They are sanitized of client-specific data but otherwise show the actual approach used. *(The two newest systems — the X and Instagram engagement agents — currently ship with README + workflow diagram; full architecture docs are on the way.)*
 
 ---
 
 ## Featured Systems
 
-### 1. Hostzera — AI Chat Widget
+### 1. Autonomous X (Twitter) Engagement Agent
+
+**Stack:** n8n · AWS Bedrock (LLM) · Apify · Google Sheets · JavaScript
+**Status:** Ran fully unattended in production for a climate-tech brand
+
+![x engagement workflow](./x-engagement-system/x-engagement-workflow.jpg)
+
+Two linked workflows discover relevant X posts (following-list + ~20 keyword searches), judge every candidate with an **AWS Bedrock relevance classifier** (structured JSON verdicts, fail-closed parsing), then draft and post on-brand expert replies — under strict caps (24/day, 1 per author), active-hours gating, randomized pacing, a similarity gate against near-duplicate replies, and a pre-post row lock that makes double-posting impossible.
+
+**Impact:**
+- Replaces **~2–4 hours/day of skilled engagement work**, fully unattended
+- ~15–40 relevant posts discovered and queued daily; up to 24 expert replies/day
+- Three-layer relevance filtering — cheap pre-filters → LLM classification → hard gate
+
+[View details →](./x-engagement-system)
+
+---
+
+### 2. Autonomous Instagram Engagement Agent
+
+**Stack:** n8n · AWS Bedrock (LLM) · Apify · Unipile API · Google Sheets
+**Status:** Full engagement lifecycle automated for a climate-tech brand
+
+![instagram engagement workflow](./instagram-engagement-system/instagram-engagement-workflow.jpg)
+
+Scraper + Commenter workflows sharing one Google Sheet as queue, status tracker, and dedup memory. All scraping runs **off-account** on Apify's infrastructure; the account performs only one low-volume action — posting the comment — through Unipile's managed-session API. Five-layer duplicate protection, a **self-healing queue** that reclaims orphaned rows after crashes, and a state machine (`needs_comment → posting → posted / failed`) with terminal failure after 3 attempts.
+
+**Impact:**
+- Full engagement lifecycle — discovery → relevance filtering → drafting → posting — with zero manual steps
+- Conservative governance: 12/day, 1 per author/day, human active hours, randomized gaps
+- Never loops, never duplicates, self-recovers from restarts
+
+[View details →](./instagram-engagement-system)
+
+---
+
+### 3. Hostzera — AI Chat Widget
 
 **Stack:** n8n · Anthropic Claude · OpenAI · Google Sheets · JavaScript · Webhooks
 **Status:** Running in production since January 2026
@@ -60,43 +96,6 @@ AI-driven customer support and sales assistant for **Hostzera** (web hosting pla
 - Higher lead conversion through intelligent qualification
 
 [View details →](./hostzera-chat-widget) · [Architecture →](./hostzera-chat-widget/architecture.md) · [Code →](./hostzera-chat-widget/code_examples.md)
-
----
-
-### 2. Lead Generation & AI Outreach Engine
-
-**Stack:** n8n · Apify (Google Maps Scraper) · ZeroBounce · OpenAI · Google Sheets · Gmail
-**Status:** Deployed for marketing agency outreach campaigns
-
-![lead generation workflow](./lead-generation-system/lead-generation-workflow.png)
-
-End-to-end pipeline: **Google Maps scraping → deduplication → email verification (ZeroBounce) → AI-personalized outreach → human approval → sending**. Every email is reviewed before it goes out. Built with retry logic, error logging, and team notifications.
-
-**Impact:**
-- Automated prospecting eliminates hours of manual research per campaign
-- Verified emails protect sender reputation and ensure deliverability
-- Human-in-the-loop ensures quality — no email sent without approval
-
-[View details →](./lead-generation-system) · [Architecture →](./lead-generation-system/architecture.md) · [Code →](./lead-generation-system/code_examples.md)
-
----
-
-### 3. Clinic AI Receptionist
-
-**Stack:** n8n · OpenAI · WhatsApp / Messenger / Telegram / Instagram · Google Sheets · Google Calendar
-**Status:** Production system handling live patient inquiries
-
-![clinic workflow](./clinic-booking-system/clinic%20workflow.jpg)
-
-Replaces manual receptionist chat with an AI assistant across WhatsApp, Messenger, Instagram, and Telegram. Handles FAQs, collects patient details, books appointments, sends reminders, and logs everything into Google Sheets. Bilingual Arabic/English with dialect handling.
-
-**Impact:**
-- **90%+ of initial inquiries** handled end-to-end by automation
-- Response time dropped to **under 2 minutes**
-- Front-desk manual work reduced by **~70%**
-- No-show rate dropped from 18% to 6% after reminder system
-
-[View details →](./clinic-booking-system) · [Architecture →](./clinic-booking-system/architecture.md) · [Setup guide →](./clinic-booking-system/setup.md) · [Code →](./clinic-booking-system/code_examples.md)
 
 ---
 
@@ -120,7 +119,44 @@ AI-assisted pipeline that transforms **construction specification PDFs** into st
 
 ---
 
-### 5. Wellness Club — GHL + n8n
+### 5. Clinic AI Receptionist
+
+**Stack:** n8n · OpenAI · WhatsApp / Messenger / Telegram / Instagram · Google Sheets · Google Calendar
+**Status:** Production system handling live patient inquiries
+
+![clinic workflow](./clinic-booking-system/clinic%20workflow.jpg)
+
+Replaces manual receptionist chat with an AI assistant across WhatsApp, Messenger, Instagram, and Telegram. Handles FAQs, collects patient details, books appointments, sends reminders, and logs everything into Google Sheets. Bilingual Arabic/English with dialect handling.
+
+**Impact:**
+- **90%+ of initial inquiries** handled end-to-end by automation
+- Response time dropped to **under 2 minutes**
+- Front-desk manual work reduced by **~70%**
+- No-show rate dropped from 18% to 6% after reminder system
+
+[View details →](./clinic-booking-system) · [Architecture →](./clinic-booking-system/architecture.md) · [Setup guide →](./clinic-booking-system/setup.md) · [Code →](./clinic-booking-system/code_examples.md)
+
+---
+
+### 6. Lead Generation & AI Outreach Engine
+
+**Stack:** n8n · Apify (Google Maps Scraper) · ZeroBounce · OpenAI · Google Sheets · Gmail
+**Status:** Deployed for marketing agency outreach campaigns
+
+![lead generation workflow](./lead-generation-system/lead-generation-workflow.png)
+
+End-to-end pipeline: **Google Maps scraping → deduplication → email verification (ZeroBounce) → AI-personalized outreach → human approval → sending**. Every email is reviewed before it goes out. Built with retry logic, error logging, and team notifications.
+
+**Impact:**
+- Automated prospecting eliminates hours of manual research per campaign
+- Verified emails protect sender reputation and ensure deliverability
+- Human-in-the-loop ensures quality — no email sent without approval
+
+[View details →](./lead-generation-system) · [Architecture →](./lead-generation-system/architecture.md) · [Code →](./lead-generation-system/code_examples.md)
+
+---
+
+### 7. Wellness Club — GHL + n8n
 
 **Stack:** GoHighLevel · n8n · JavaScript · WhatsApp API · Google Sheets · Google Calendar
 **Status:** Full ecosystem deployed for wellness club operations
@@ -141,7 +177,7 @@ Comprehensive system combining GoHighLevel for the client journey (pipelines, wo
 
 ---
 
-### 6. Marketing Content Pipeline
+### 8. Marketing Content Pipeline
 
 **Stack:** n8n · OpenAI · RSS / External APIs · Gmail · Google Sheets
 **Status:** Deployed for content marketing automation
@@ -162,7 +198,7 @@ Content-driven marketing automation: monitors RSS feeds, generates AI-assisted s
 
 ---
 
-### 7. Gym Lead Management
+### 9. Gym Lead Management
 
 **Stack:** n8n · OpenAI · WhatsApp / Instagram / Messenger · Google Sheets · Google Calendar
 **Status:** Designed for gyms handling 150+ leads/month
@@ -181,7 +217,7 @@ Captures all incoming messages and turns them into a structured lead pipeline (N
 
 ---
 
-### 8. Beauty Center AI Reception
+### 10. Beauty Center AI Reception
 
 **Stack:** n8n · OpenAI · WhatsApp / Instagram / Messenger · Google Sheets · Google Calendar
 **Status:** Multi-channel reception system for beauty businesses
@@ -230,9 +266,11 @@ Typical patterns: centralizing multi-channel inquiries into Google Sheets, autom
 
 | Category | Tools |
 |---|---|
-| **Automation & AI** | n8n (self-hosted via Docker), GoHighLevel, Claude Code, Cursor, OpenAI API, Anthropic API, Make / Zapier |
-| **CRMs & Data** | HubSpot, Zoho, Airtable, Google Sheets, Google Calendar API |
-| **Messaging** | WhatsApp Business API, Meta Messenger, Instagram Direct, Telegram Bot API, Slack |
+| **AI & LLMs** | AWS Bedrock, Anthropic Claude, OpenAI GPT, Google Gemini · RAG pipelines · structured-output prompting · Claude Code, Cursor |
+| **Automation & Orchestration** | n8n (self-hosted via Docker), GoHighLevel, Make / Zapier |
+| **Data & Scraping** | Apify (X, Instagram, Google Maps actors), Clay, LinkedIn Sales Navigator, ZeroBounce, Twilio Lookup |
+| **CRMs & Storage** | HubSpot, Zoho, Airtable, Google Sheets, Google Calendar API |
+| **Messaging & Posting** | WhatsApp Business API, Meta Messenger, Instagram (Unipile managed API), Telegram Bot API, Slack |
 | **Programming** | JavaScript (n8n function nodes, custom logic), Python (data processing), SQL |
 | **Infrastructure** | Hostinger VPS (Docker), Git/GitHub, structured logging, retry logic, error monitoring, Discord/email alerting |
 
@@ -242,13 +280,13 @@ Typical patterns: centralizing multi-channel inquiries into Google Sheets, autom
 
 | Industry | Use Cases |
 |---|---|
+| **Enterprise & Groups** | Lead intelligence pipelines, AI agents, internal AI tooling, compliant data enrichment |
+| **Brands & Social** | Autonomous engagement agents, content pipelines, brand-voice LLM systems |
 | **Web Hosting** | Chat widgets, lead qualification, client onboarding, upsell automation |
 | **Marketing Agencies** | Lead generation, content pipelines, campaign automation, outreach |
 | **Construction & Engineering** | Document processing, specification automation, QA reporting |
 | **Clinics & Medical** | Patient booking, reminders, FAQ automation |
-| **Gyms & Fitness** | Lead capture, trials, membership retention |
-| **Beauty & Salons** | Multi-service booking, customer follow-up |
-| **Private Services** | Reception automation, lead qualification, job tracking |
+| **Gyms, Beauty & Services** | Lead capture, multi-service booking, retention automation |
 
 ---
 
