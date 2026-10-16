@@ -2,7 +2,7 @@
 
 The patterns documented here appear across every system in this portfolio. Each one represents a deliberate design decision that has cost me time when I skipped it and saved me time when I applied it consistently.
 
-A portfolio of ten systems is interesting; the same patterns applied consistently across all ten is what demonstrates engineering discipline.
+A portfolio of systems is interesting; the same patterns applied consistently across every one of them is what demonstrates engineering discipline.
 
 ---
 

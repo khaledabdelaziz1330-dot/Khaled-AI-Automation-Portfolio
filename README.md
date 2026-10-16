@@ -6,7 +6,7 @@
 
 AI Engineer at **Quara Holding**, the Riyadh-headquartered group behind Saudi-listed **Dar Al Arkan**, London-listed **Dar Global** (US$23 billion development portfolio) and proptech platform **Wasalt**. I design, build and operate production AI systems — conversational agents, retrieval-grounded assistants, document intelligence and data pipelines — that deliver measurable business results.
 
-This repository presents **ten AI systems** from my work for clients and employers before joining Quara — each with its architecture, measured results and a sanitized workflow export — together with the **shared error handler** they report to and an **automated test suite** that verifies the engineering claims on every push.
+This repository presents **AI systems** from my work for clients and employers before joining Quara — each with its architecture, measured results and a sanitized workflow export — together with the **shared error handler** they report to and an **automated test suite** that verifies the engineering claims on every push.
 
 [LinkedIn](https://www.linkedin.com/in/khaledabdelaziz-ai) · [Email](mailto:khaledabdelaziz1330@gmail.com) · **Languages:** Arabic (native) · English (fluent)
 
