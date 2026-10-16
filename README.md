@@ -153,16 +153,18 @@ The same engineering bar applies to every system, and it is **checked automatica
 
 ---
 
-## Tech stack
+## Skills & tech stack
 
-| Category | Tools |
+Same categories as my CV; tools in *italics* are used in the systems in this repository.
+
+| Area | Skills and tools |
 |---|---|
-| **AI & LLMs** | Anthropic Claude, OpenAI (gpt-4o, gpt-4o-mini), AWS Bedrock, Google Gemini · retrieval-augmented generation · structured-output prompting |
-| **Orchestration** | n8n (self-hosted on Docker), GoHighLevel, Make, Zapier |
-| **Data & enrichment** | Apify, Clay, LinkedIn Sales Navigator, ZeroBounce |
-| **CRM & storage** | HubSpot, Airtable, Zoho, Google Sheets, Google Calendar |
-| **Channels** | WhatsApp Business API, Messenger, Instagram (Unipile), Telegram Bot API, Gmail, Slack |
-| **Engineering** | JavaScript (n8n Code nodes) · Node.js test runner · GitHub Actions · Python & SQL (working knowledge) · Docker · VPS · Claude Code, Cursor |
+| **AI & LLMs** | LLM applications · AI agents · RAG · prompt engineering · LLM evaluation · Claude, GPT & Gemini APIs · *AWS Bedrock* · *structured JSON outputs* |
+| **Automation** | Workflow orchestration (n8n, Make, Zapier) · REST APIs & webhooks · GoHighLevel · WhatsApp Business API · *Messenger, Instagram, Telegram, Gmail, Slack* |
+| **Data & CRM** | Clay · LinkedIn Sales Navigator · HubSpot · Airtable · Zoho · data enrichment & lead scoring · *Apify, ZeroBounce, Google Sheets, Google Calendar* |
+| **Engineering** | Python, JavaScript & SQL (working knowledge) · Git/GitHub · Docker · VPS deployment · Claude Code/Cursor · *automated testing (Node.js), GitHub Actions CI* |
+| **Governance** | Monitoring & logging · consent and audit trails · human-in-the-loop review · data privacy (Saudi PDPL, GDPR) |
+| **Languages** | Arabic (native) · English (fluent) |
 
 ---
 
