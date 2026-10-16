@@ -1,0 +1,53 @@
+conversation_id,channel,channel_message_id,sent_at,direction,sender,intent,body
+c01,whatsapp,wamid.SAMPLE0001,2026-03-02T07:15:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c01,whatsapp,wamid.SAMPLE0002,2026-03-02T07:15:03Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c01,whatsapp,wamid.SAMPLE0003,2026-03-02T07:19:03Z,inbound,patient,CONFIRMATION,10:30 works
+c01,whatsapp,wamid.SAMPLE0004,2026-03-02T07:19:06Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c02,whatsapp,wamid.SAMPLE0005,2026-03-03T10:22:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c02,whatsapp,wamid.SAMPLE0006,2026-03-03T10:22:02Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c02,whatsapp,wamid.SAMPLE0007,2026-03-03T10:26:02Z,inbound,patient,CONFIRMATION,10:30 works
+c02,whatsapp,wamid.SAMPLE0008,2026-03-03T10:26:05Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c03,whatsapp,wamid.SAMPLE0009,2026-03-04T13:29:00Z,inbound,patient,FAQ,What are your opening hours?
+c03,whatsapp,wamid.SAMPLE0010,2026-03-04T13:29:04Z,outbound,ai,,"Hi! We are open Saturday to Thursday, 9:00–19:00. How can we help?"
+c04,instagram,ig_mid_0011,2026-03-05T07:36:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c04,instagram,ig_mid_0012,2026-03-05T07:36:03Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c04,instagram,ig_mid_0013,2026-03-05T07:40:03Z,inbound,patient,CONFIRMATION,10:30 works
+c04,instagram,ig_mid_0014,2026-03-05T07:40:06Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c05,whatsapp,wamid.SAMPLE0015,2026-03-06T10:43:00Z,inbound,patient,COMPLAINT,I waited 40 minutes at my last visit
+c05,whatsapp,wamid.SAMPLE0016,2026-03-06T10:43:03Z,outbound,ai,,Thank you for letting us know — a team member will follow up shortly.
+c05,whatsapp,wamid.SAMPLE0017,2026-03-06T11:05:03Z,outbound,staff,,"Hi, this is the front desk — happy to help with this."
+c06,whatsapp,wamid.SAMPLE0018,2026-03-07T13:50:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c06,whatsapp,wamid.SAMPLE0019,2026-03-07T13:50:02Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c06,whatsapp,wamid.SAMPLE0020,2026-03-07T13:54:02Z,inbound,patient,CONFIRMATION,10:30 works
+c06,whatsapp,wamid.SAMPLE0021,2026-03-07T13:54:05Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c07,messenger,m_0022,2026-03-08T07:57:00Z,inbound,patient,GREETING,Hello
+c07,messenger,m_0023,2026-03-08T07:57:01Z,outbound,ai,,"Hi! We are open Saturday to Thursday, 9:00–19:00. How can we help?"
+c08,messenger,m_0024,2026-03-09T11:04:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c08,messenger,m_0025,2026-03-09T11:04:05Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c08,messenger,m_0026,2026-03-09T11:08:05Z,inbound,patient,CONFIRMATION,10:30 works
+c08,messenger,m_0027,2026-03-09T11:08:08Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c09,telegram,tg_0028,2026-03-10T13:21:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c09,telegram,tg_0029,2026-03-10T13:21:04Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c09,telegram,tg_0030,2026-03-10T13:25:04Z,inbound,patient,CONFIRMATION,10:30 works
+c09,telegram,tg_0031,2026-03-10T13:25:07Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c10,instagram,ig_mid_0032,2026-03-11T07:28:00Z,inbound,patient,FAQ,What are your opening hours?
+c10,instagram,ig_mid_0033,2026-03-11T07:28:02Z,outbound,ai,,"Hi! We are open Saturday to Thursday, 9:00–19:00. How can we help?"
+c11,telegram,tg_0034,2026-03-12T10:35:00Z,inbound,patient,OTHER,Do you accept my insurance plan?
+c11,telegram,tg_0035,2026-03-12T10:35:03Z,outbound,ai,,Thank you for letting us know — a team member will follow up shortly.
+c11,telegram,tg_0036,2026-03-12T10:57:03Z,outbound,staff,,"Hi, this is the front desk — happy to help with this."
+c12,whatsapp,wamid.SAMPLE0037,2026-03-13T13:42:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c12,whatsapp,wamid.SAMPLE0038,2026-03-13T13:43:35Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c12,whatsapp,wamid.SAMPLE0039,2026-03-13T13:47:35Z,inbound,patient,CONFIRMATION,10:30 works
+c12,whatsapp,wamid.SAMPLE0040,2026-03-13T13:47:38Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c13,messenger,m_0041,2026-03-14T07:49:00Z,inbound,patient,FAQ,What are your opening hours?
+c13,messenger,m_0042,2026-03-14T07:49:02Z,outbound,ai,,"Hi! We are open Saturday to Thursday, 9:00–19:00. How can we help?"
+c14,instagram,ig_mid_0043,2026-03-15T10:56:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c14,instagram,ig_mid_0044,2026-03-15T10:56:03Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c14,instagram,ig_mid_0045,2026-03-15T11:00:03Z,inbound,patient,CONFIRMATION,10:30 works
+c14,instagram,ig_mid_0046,2026-03-15T11:00:06Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c15,whatsapp,wamid.SAMPLE0047,2026-03-16T14:03:00Z,inbound,patient,BOOKING_REQUEST,I would like to book a cleaning this week
+c15,whatsapp,wamid.SAMPLE0048,2026-03-16T14:04:58Z,outbound,ai,,"We have Tuesday 10:00, 10:30 or 14:00 — which suits you?"
+c15,whatsapp,wamid.SAMPLE0049,2026-03-16T14:08:58Z,inbound,patient,CONFIRMATION,10:30 works
+c15,whatsapp,wamid.SAMPLE0050,2026-03-16T14:09:01Z,outbound,ai,,Confirmed for Tuesday 10:30. See you then!
+c16,whatsapp,wamid.SAMPLE0051,2026-03-17T07:20:00Z,inbound,patient,GREETING,Hello
+c16,whatsapp,wamid.SAMPLE0052,2026-03-17T07:20:01Z,outbound,ai,,"Hi! We are open Saturday to Thursday, 9:00–19:00. How can we help?"

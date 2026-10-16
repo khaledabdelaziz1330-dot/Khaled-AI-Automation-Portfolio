@@ -41,7 +41,7 @@ One webhook receives patient messages from four channels and normalizes them int
 
 **Impact (90-day production window):** 90%+ of inquiries handled end to end · replies under 2 minutes · front-desk workload down 70% (35–40 → 10–12 h/week) · no-shows 18% → 6%.
 
-[README](./clinic-booking-system) · [Architecture](./clinic-booking-system/architecture.md) · [Performance](./clinic-booking-system/PERFORMANCE.md) · [Setup guide](./clinic-booking-system/setup.md) · [Tests](./tests/clinic.test.js)
+[README](./clinic-booking-system) · [Architecture](./clinic-booking-system/architecture.md) · [Performance](./clinic-booking-system/PERFORMANCE.md) · [KPI analytics (Python + SQL)](./clinic-booking-system/analytics) · [Setup guide](./clinic-booking-system/setup.md) · [Tests](./tests/clinic.test.js)
 
 ### Hostzera — Retrieval-Grounded Chat Assistant
 **n8n · Anthropic Claude · Google Sheets · JavaScript**
@@ -106,7 +106,8 @@ The same engineering bar applies to every system, and it is **checked automatica
 | **Human-in-the-loop** | Mandatory approval gates on outbound email and on document output with any warning |
 | **Idempotency** | Event IDs, dedup keys and lock states prevent duplicate rows, replies and posts under webhook retries |
 | **Data protection** | Secrets and PII redacted from logs; data minimisation in prompts; outreach only to verified contacts; design aligned with Saudi PDPL and GDPR principles |
-| **Automated tests** | [110+ checks](./tests) run the real code from each `workflow.json`, and guard against the real bugs fixed while building them ([details](./tests/README.md#bugs-found-and-fixed-while-building-the-suite)) |
+| **Measurable outcomes** | The clinic's KPIs are defined in [SQL and Python](./clinic-booking-system/analytics) and cross-checked by tests on SQLite and PostgreSQL |
+| **Automated tests** | [125+ checks](./tests) in JavaScript, Python and SQL run on every push — including the real code from each `workflow.json` — and guard against the real bugs fixed while building them ([details](./tests/README.md#bugs-found-and-fixed-while-building-the-suite)) |
 
 ---
 
@@ -162,7 +163,7 @@ Same categories as my CV; tools in *italics* are used in the systems in this rep
 | **AI & LLMs** | LLM applications · AI agents · RAG · prompt engineering · LLM evaluation · Claude, GPT & Gemini APIs · *AWS Bedrock* · *structured JSON outputs* |
 | **Automation** | Workflow orchestration (n8n, Make, Zapier) · REST APIs & webhooks · GoHighLevel · WhatsApp Business API · *Messenger, Instagram, Telegram, Gmail, Slack* |
 | **Data & CRM** | Clay · LinkedIn Sales Navigator · HubSpot · Airtable · Zoho · data enrichment & lead scoring · *Apify, ZeroBounce, Google Sheets, Google Calendar* |
-| **Engineering** | Python, JavaScript & SQL (working knowledge) · Git/GitHub · Docker · VPS deployment · Claude Code/Cursor · *automated testing (Node.js), GitHub Actions CI* |
+| **Engineering** | Python, JavaScript & SQL (working knowledge) · Git/GitHub · Docker · VPS deployment · Claude Code/Cursor · *PostgreSQL data modeling, KPI analytics in Python, automated testing, GitHub Actions CI* |
 | **Governance** | Monitoring & logging · consent and audit trails · human-in-the-loop review · data privacy (Saudi PDPL, GDPR) |
 | **Languages** | Arabic (native) · English (fluent) |
 
@@ -177,6 +178,7 @@ Same categories as my CV; tools in *italics* are used in the systems in this rep
 │   ├── PERFORMANCE.md         metrics, cost, reliability and scale limits
 │   ├── code_examples.md       code taken from the workflow's nodes
 │   └── workflow.json          sanitized n8n export (importable after replacing placeholder credentials)
+├── clinic-booking-system/analytics/   KPI analytics (Python) and PostgreSQL schema + KPI queries (SQL)
 ├── shared-error-handler/      the error workflow every system reports to
 ├── tests/                     automated tests run against each workflow.json
 ├── PATTERNS.md                cross-cutting engineering patterns

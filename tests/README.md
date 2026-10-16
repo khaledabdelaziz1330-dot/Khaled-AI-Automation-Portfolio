@@ -2,6 +2,8 @@
 
 Automated tests that run on every push (GitHub Actions) and prove the claims in this portfolio.
 
+This folder holds the **JavaScript** tests for the n8n workflows. The **Python and SQL** tests for the clinic's KPI analytics live in [`clinic-booking-system/analytics`](../clinic-booking-system/analytics) and run in the same CI job — on SQLite and on a real PostgreSQL 16 server.
+
 ```bash
 npm test          # or: node --test tests/*.test.js
 ```

@@ -1,0 +1,9 @@
+appointment_id,conversation_id,service,start_at,status,reminder_sent
+a01,c01,Cleaning,2026-03-05T08:30:00Z,attended,true
+a02,c02,Whitening,2026-03-07T08:30:00Z,attended,true
+a03,c04,Check-up,2026-03-07T08:30:00Z,attended,true
+a04,c06,Filling,2026-03-12T08:30:00Z,no_show,true
+a05,c08,Cleaning,2026-03-12T08:30:00Z,attended,false
+a06,c09,Check-up,2026-03-12T08:30:00Z,no_show,false
+a07,c12,Implant consultation,2026-04-22T08:30:00Z,booked,false
+a08,c14,Cleaning,2026-03-21T08:30:00Z,cancelled,false

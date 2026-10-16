@@ -86,6 +86,7 @@ flowchart TD
 - [`code_examples.md`](./code_examples.md) — JavaScript and prompts taken from the workflow
 - [`PERFORMANCE.md`](./PERFORMANCE.md) — latency, throughput, cost, reliability and outcome data
 - [`setup.md`](./setup.md) — deployment guide and configuration
+- [`analytics/`](./analytics) — KPI definitions in SQL and Python, PostgreSQL schema, and tests that prove both agree
 - [`examples/`](./examples) — sanitized conversations, error reports and KPI dashboard from production
 - [`workflow.json`](./workflow.json) — sanitized n8n workflow export, importable to any n8n instance
 - [`clinic workflow.jpg`](./clinic%20workflow.jpg) — production workflow canvas

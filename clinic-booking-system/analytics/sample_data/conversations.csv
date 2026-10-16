@@ -1,0 +1,17 @@
+conversation_id,channel,user_id,started_at
+c01,whatsapp,wa_1001,2026-03-02T07:15:00Z
+c02,whatsapp,wa_1002,2026-03-03T10:22:00Z
+c03,whatsapp,wa_1003,2026-03-04T13:29:00Z
+c04,instagram,ig_2001,2026-03-05T07:36:00Z
+c05,whatsapp,wa_1004,2026-03-06T10:43:00Z
+c06,whatsapp,wa_1005,2026-03-07T13:50:00Z
+c07,messenger,fb_3001,2026-03-08T07:57:00Z
+c08,messenger,fb_3002,2026-03-09T11:04:00Z
+c09,telegram,tg_4001,2026-03-10T13:21:00Z
+c10,instagram,ig_2002,2026-03-11T07:28:00Z
+c11,telegram,tg_4002,2026-03-12T10:35:00Z
+c12,whatsapp,wa_1006,2026-03-13T13:42:00Z
+c13,messenger,fb_3003,2026-03-14T07:49:00Z
+c14,instagram,ig_2003,2026-03-15T10:56:00Z
+c15,whatsapp,wa_1007,2026-03-16T14:03:00Z
+c16,whatsapp,wa_1008,2026-03-17T07:20:00Z

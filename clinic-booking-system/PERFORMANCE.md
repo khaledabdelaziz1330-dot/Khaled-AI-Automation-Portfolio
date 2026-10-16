@@ -77,7 +77,7 @@ WhatsApp is the dominant and most variable line: Meta bills per conversation, wi
 
 ## Outcome Metrics
 
-The metrics the clinic manages against:
+The metrics the clinic manages against. Their exact definitions are written in SQL and Python in [`analytics/`](./analytics), so they can be recomputed from an export of the conversation log:
 
 | Metric | Before automation | After 30 days | After 90 days |
 |---|---|---|---|
@@ -103,7 +103,7 @@ Sizing guidance for other clinics:
 
 ## Known Scaling Limits
 
-1. **Beyond ~1,000 concurrent conversations:** Google Sheets becomes the bottleneck; migrate conversation state to Postgres or MongoDB.
+1. **Beyond ~1,000 concurrent conversations:** Google Sheets becomes the bottleneck; migrate conversation state to PostgreSQL — the schema is ready in [`analytics/schema.sql`](./analytics/schema.sql).
 2. **Beyond ~10,000 messages/day:** dedicated rate-limit management and multiple n8n workers in queue mode.
 3. **Compliance-heavy contexts (HIPAA, strict GDPR):** conversation logging in Google Sheets must be replaced with audit-grade storage.
 
