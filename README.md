@@ -70,17 +70,6 @@ Turns construction specification PDFs into structured Excel outputs, with a QA r
 
 [README](./document-automation-system) · [Architecture](./document-automation-system/architecture.md) · [Performance](./document-automation-system/PERFORMANCE.md) · [Tests](./tests/document-automation.test.js)
 
-### AI Prospecting & Outreach Pipeline
-**n8n · Apify · ZeroBounce · OpenAI (gpt-4o) · Google Sheets · Telegram**
-
-![AI prospecting and outreach pipeline workflow](./lead-generation-system/lead-generation-workflow.png)
-
-Verifies leads and drafts personalized outreach for each campaign every week. Businesses are collected from Google Maps, normalized and **deduplicated by email, phone and domain** against every existing lead; email addresses are verified with ZeroBounce; gpt-4o drafts a personalized message; and **nothing is sent until an operator approves it in Telegram**.
-
-**Impact:** <2% bounce rate · 8–12% reply rate · ~150 verified, approved leads per week per campaign · ~$0.04–0.08 per lead.
-
-[README](./lead-generation-system) · [Architecture](./lead-generation-system/architecture.md) · [Performance](./lead-generation-system/PERFORMANCE.md) · [Tests](./tests/lead-generation.test.js)
-
 ### RAG Sales & Support Assistant — Hostzera
 **n8n · Anthropic Claude · Google Sheets · JavaScript**
 
@@ -91,6 +80,17 @@ Answers sales and support questions for a web-hosting company, grounded only in 
 **Impact:** ~0.5% hallucination rate, measured on a 200-conversation audit · support-ticket rate down from 35% to 12% of conversations · 1.5-second typical response · ~$0.018 per conversation.
 
 [README](./hostzera-chat-widget) · [Architecture](./hostzera-chat-widget/architecture.md) · [Performance](./hostzera-chat-widget/PERFORMANCE.md) · [Tests](./tests/hostzera.test.js)
+
+### AI Prospecting & Outreach Pipeline
+**n8n · Apify · ZeroBounce · OpenAI (gpt-4o) · Google Sheets · Telegram**
+
+![AI prospecting and outreach pipeline workflow](./lead-generation-system/lead-generation-workflow.png)
+
+Verifies leads and drafts personalized outreach for each campaign every week. Businesses are collected from Google Maps, normalized and **deduplicated by email, phone and domain** against every existing lead; email addresses are verified with ZeroBounce; gpt-4o drafts a personalized message; and **nothing is sent until an operator approves it in Telegram**.
+
+**Impact:** <2% bounce rate · 8–12% reply rate · ~150 verified, approved leads per week per campaign · ~$0.04–0.08 per lead.
+
+[README](./lead-generation-system) · [Architecture](./lead-generation-system/architecture.md) · [Performance](./lead-generation-system/PERFORMANCE.md) · [Tests](./tests/lead-generation.test.js)
 
 ---
 
