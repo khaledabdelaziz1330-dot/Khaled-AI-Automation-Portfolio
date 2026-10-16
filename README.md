@@ -30,7 +30,7 @@ The systems below apply the same engineering approach to work I can share public
 
 ## Featured systems
 
-Three AI agents — conversational, retrieval-grounded and brand-voice — and two AI pipelines, each with measured results.
+Three AI agents and two AI pipelines, each with measured results.
 
 ### Healthcare AI Receptionist
 **n8n · OpenAI (gpt-4o, gpt-4o-mini) · Google Calendar · Google Sheets · Meta Graph API · Telegram**
@@ -42,17 +42,6 @@ Answers patient inquiries and books appointments across WhatsApp, Instagram, Mes
 **Impact (90-day production window):** 90%+ of inquiries resolved without staff · replies in under 2 minutes · front-desk workload down 70% (35–40 → 10–12 hours a week) · no-shows down from 18% to 6%.
 
 [README](./clinic-booking-system) · [Architecture](./clinic-booking-system/architecture.md) · [Performance](./clinic-booking-system/PERFORMANCE.md) · [KPI analytics (Python + SQL)](./clinic-booking-system/analytics) · [Setup guide](./clinic-booking-system/setup.md) · [Tests](./tests/clinic.test.js)
-
-### RAG Sales & Support Assistant — Hostzera
-**n8n · Anthropic Claude · Google Sheets · JavaScript**
-
-![RAG sales and support assistant workflow](./hostzera-chat-widget/chat-widget-workflow.png)
-
-Answers sales and support questions for a web-hosting company, grounded only in the company's own knowledge base. Each visitor message is scored against a staff-editable knowledge base; only the five best-matching entries reach Claude, which answers from that context alone and hands off to the team when it cannot. Retrieval and conversation history load in parallel and merge before a single model call.
-
-**Impact:** ~0.5% hallucination rate, measured on a 200-conversation audit · support-ticket rate down from 35% to 12% of conversations · 1.5-second typical response · ~$0.018 per conversation.
-
-[README](./hostzera-chat-widget) · [Architecture](./hostzera-chat-widget/architecture.md) · [Performance](./hostzera-chat-widget/PERFORMANCE.md) · [Tests](./tests/hostzera.test.js)
 
 ### Brand-Voice AI Agents — Climate-Tech Company (X & Instagram)
 **n8n · AWS Bedrock · Apify · Unipile · Google Sheets · JavaScript**
@@ -91,6 +80,17 @@ Verifies leads and drafts personalized outreach for each campaign every week. Bu
 **Impact:** <2% bounce rate · 8–12% reply rate · ~150 verified, approved leads per week per campaign · ~$0.04–0.08 per lead.
 
 [README](./lead-generation-system) · [Architecture](./lead-generation-system/architecture.md) · [Performance](./lead-generation-system/PERFORMANCE.md) · [Tests](./tests/lead-generation.test.js)
+
+### RAG Sales & Support Assistant — Hostzera
+**n8n · Anthropic Claude · Google Sheets · JavaScript**
+
+![RAG sales and support assistant workflow](./hostzera-chat-widget/chat-widget-workflow.png)
+
+Answers sales and support questions for a web-hosting company, grounded only in the company's own knowledge base. Each visitor message is scored against a staff-editable knowledge base; only the five best-matching entries reach Claude, which answers from that context alone and hands off to the team when it cannot. Retrieval and conversation history load in parallel and merge before a single model call.
+
+**Impact:** ~0.5% hallucination rate, measured on a 200-conversation audit · support-ticket rate down from 35% to 12% of conversations · 1.5-second typical response · ~$0.018 per conversation.
+
+[README](./hostzera-chat-widget) · [Architecture](./hostzera-chat-widget/architecture.md) · [Performance](./hostzera-chat-widget/PERFORMANCE.md) · [Tests](./tests/hostzera.test.js)
 
 ---
 
