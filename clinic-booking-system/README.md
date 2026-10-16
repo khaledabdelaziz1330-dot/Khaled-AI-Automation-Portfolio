@@ -1,4 +1,4 @@
-# Clinic AI Receptionist — Multi-Channel Booking System
+# Healthcare AI Receptionist — Multi-Channel Patient Booking
 
 Production AI receptionist that handles **90%+ of patient inquiries end to end** across WhatsApp, Instagram, Messenger and Telegram, with replies **under 2 minutes** and **70% less front-desk workload**. Built for dental clinics, medical practices and other appointment-driven healthcare providers.
 

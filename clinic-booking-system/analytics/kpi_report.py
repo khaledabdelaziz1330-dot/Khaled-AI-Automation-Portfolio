@@ -1,4 +1,4 @@
-"""KPI report for the Clinic AI Receptionist.
+"""KPI report for the Healthcare AI Receptionist.
 
 Reads the conversation log exported from the clinic system (three CSV files) and computes
 the metrics the clinic manages against:
@@ -140,7 +140,7 @@ def render_markdown(k: dict) -> str:
         return "n/a" if value is None else f"{value:g} s"
 
     lines = [
-        "# Clinic AI Receptionist — KPI report",
+        "# Healthcare AI Receptionist — KPI report",
         "",
         "| Metric | Value |",
         "|---|---|",

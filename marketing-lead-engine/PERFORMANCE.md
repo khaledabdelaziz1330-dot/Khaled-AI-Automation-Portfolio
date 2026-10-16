@@ -1,4 +1,4 @@
-# Performance Characteristics — Marketing Content Pipeline
+# Performance Characteristics — Permission-First AI Content Pipeline
 
 Design parameters and cost model for the permission-based content pipeline in [`workflow.json`](workflow.json). The workflow ends when the permission request is sent and logged, so this page makes no claims about author response, approval, or publication rates.
 

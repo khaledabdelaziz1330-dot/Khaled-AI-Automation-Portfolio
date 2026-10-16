@@ -1,4 +1,4 @@
--- Clinic AI Receptionist — relational data model
+-- Healthcare AI Receptionist — relational data model
 --
 -- The production system logs conversations to Google Sheets. PERFORMANCE.md names a database as
 -- the next step once volume outgrows Sheets; this is that schema.

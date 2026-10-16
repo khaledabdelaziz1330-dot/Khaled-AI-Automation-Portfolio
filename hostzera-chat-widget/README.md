@@ -1,4 +1,4 @@
-# Hostzera – Retrieval-Grounded AI Chat Widget
+# RAG Sales & Support Assistant — Hostzera
 
 AI customer support and sales assistant for a web hosting platform
 (Website Chat Widget · Keyword Retrieval · Anthropic Claude · Multi-Language · Session History)

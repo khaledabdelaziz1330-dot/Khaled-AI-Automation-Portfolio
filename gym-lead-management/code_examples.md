@@ -1,4 +1,4 @@
-# Code Examples — Gym Lead Management System
+# Code Examples — Fitness Lead-to-Member Pipeline
 
 Prompts, JavaScript and node configuration taken directly from [`workflow.json`](./workflow.json): multi-channel inbound → AI qualification → trial booking → lead record. Section 4 shows a production component that is not part of the export.
 

@@ -1,4 +1,4 @@
-# Code Examples — Lead Generation & AI Outreach Engine
+# Code Examples — AI Prospecting & Outreach Pipeline
 
 Production code from the lead generation pipeline, taken verbatim from the nodes in [`workflow.json`](workflow.json): scraping → dedup → verification → AI personalization → human approval request.
 

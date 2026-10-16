@@ -1,4 +1,4 @@
-# Performance Characteristics — Gym Lead Management System
+# Performance Characteristics — Fitness Lead-to-Member Pipeline
 
 Production metrics from a single gym location running this pipeline for 90 days.
 

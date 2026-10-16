@@ -1,4 +1,4 @@
-# Performance Characteristics — Beauty Center AI Reception
+# Performance Characteristics — AI Booking Concierge — Beauty & Wellness
 
 Production metrics from beauty centers running this reception system.
 

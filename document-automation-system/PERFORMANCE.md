@@ -1,4 +1,4 @@
-# Performance Characteristics — Document Automation System
+# Performance Characteristics — Document Intelligence Pipeline — Construction Specifications
 
 Production metrics from processing construction specification PDFs.
 

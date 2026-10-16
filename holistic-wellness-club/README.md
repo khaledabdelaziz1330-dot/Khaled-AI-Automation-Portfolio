@@ -1,4 +1,4 @@
-# Holistic Wellness Club – GHL + n8n Ecosystem
+# Client Lifecycle System — Wellness Club (GoHighLevel + n8n)
 
 End-to-end automation system for a wellness club offering yoga, meditation, retreats, and holistic cooking programs
 (GoHighLevel · n8n · JavaScript · Google Sheets · Email / SMS)

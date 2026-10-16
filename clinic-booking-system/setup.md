@@ -1,4 +1,4 @@
-# Setup & Deployment — Clinic AI Receptionist
+# Setup & Deployment — Healthcare AI Receptionist
 
 How to deploy [`workflow.json`](./workflow.json) to a self-hosted n8n instance and configure it for a clinic.
 

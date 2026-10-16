@@ -1,4 +1,4 @@
-# Performance Characteristics — Clinic AI Receptionist
+# Performance Characteristics — Healthcare AI Receptionist
 
 Production metrics from operating this system. Figures are rounded ranges from real operation, not best-case benchmarks.
 

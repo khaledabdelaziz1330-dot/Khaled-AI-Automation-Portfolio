@@ -1,4 +1,4 @@
-# Lead Generation & Outreach Engine
+# AI Prospecting & Outreach Pipeline
 
 Lead scraping, deduplication, email verification and AI-personalized outreach drafts, gated by mandatory human approval
 (Google Maps Scraping · Email Verification · AI Personalization · Telegram Approval)

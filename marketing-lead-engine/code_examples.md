@@ -1,4 +1,4 @@
-# Code Examples — Marketing Content Pipeline
+# Code Examples — Permission-First AI Content Pipeline
 
 Code and configuration taken directly from [`workflow.json`](workflow.json). RSS monitoring → deduplication → AI rewriting → author permission request → logging.
 

@@ -1,4 +1,4 @@
-# Architecture — Beauty Center AI Reception
+# Architecture — AI Booking Concierge — Beauty & Wellness
 
 Multi-channel reception system for beauty and wellness businesses: service matching from informal language, qualified-specialist booking with conflict checks, and preference-aware personalization. This document covers the exported [`workflow.json`](./workflow.json) and marks where production-only components take over.
 

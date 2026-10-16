@@ -1,6 +1,6 @@
 # Clinic KPI Analytics — Python + SQL
 
-The [outcome metrics](../PERFORMANCE.md#outcome-metrics) for the Clinic AI Receptionist — automation rate, response time, booking conversion, no-show rate — defined precisely in **SQL** and **Python**, plus the **PostgreSQL schema** that replaces the Google Sheets log once volume outgrows it.
+The [outcome metrics](../PERFORMANCE.md#outcome-metrics) for the Healthcare AI Receptionist — automation rate, response time, booking conversion, no-show rate — defined precisely in **SQL** and **Python**, plus the **PostgreSQL schema** that replaces the Google Sheets log once volume outgrows it.
 
 Both implementations compute the same metrics independently, and the tests prove they agree — on SQLite locally and on a real PostgreSQL 16 server in CI.
 

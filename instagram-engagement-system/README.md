@@ -1,10 +1,10 @@
-# Autonomous Instagram Engagement Agent
+# Brand-Voice AI Agent for Instagram — Climate-Tech Company
 
-**Fully automated Instagram engagement lifecycle** — discovers fresh, on-brand posts from the accounts a climate-tech brand follows, filters them with an LLM, writes expert comments in the brand's voice, and posts them via a managed API — with pacing, capping, quality-gating, duplicate protection, and self-healing failure recovery built in.
+**An AI agent that represents a climate-tech company on Instagram** — it finds fresh posts from the accounts the company follows, selects the relevant ones with an LLM, and comments in the company's expert voice through a managed API, with caps, quality gates, duplicate protection and self-healing recovery built in.
 
 **Stack:** n8n · AWS Bedrock (LLM) · Apify · Unipile API · Google Sheets · JavaScript
 **Architecture:** One n8n workflow with two independently scheduled pipelines (Scraper + Commenter) sharing one Google Sheet
-**Status:** Full engagement lifecycle automated in production for a climate-tech brand
+**Status:** In production for a climate-tech company — discovery to published comment, end to end
 
 ![Instagram engagement workflow](./instagram-engagement-workflow.jpg)
 
@@ -12,7 +12,7 @@
 
 ## The problem
 
-Meaningful Instagram engagement — finding the right posts from your network, commenting with genuine insight, and doing it consistently every day — is slow, repetitive, skilled work. This system automates the entire lifecycle while keeping the brand account's automated footprint to the bare minimum: **all scraping runs off-account on Apify's infrastructure**; the account itself performs only the single low-volume action that matters — posting the comment.
+Meaningful Instagram engagement — finding the right posts from your network, commenting with genuine insight, and doing it consistently every day — is slow, repetitive, skilled work. This agent handles the entire lifecycle while protecting the company's account: **all discovery runs off-account on Apify's infrastructure**, and the account itself performs only the single, low-volume action that matters — publishing the comment.
 
 ## The system
 

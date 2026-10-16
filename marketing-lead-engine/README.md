@@ -1,4 +1,4 @@
-# Marketing Content Pipeline
+# Permission-First AI Content Pipeline
 
 Automation that turns newly published articles into permission-based LinkedIn post drafts and sends each original author a consent request before anything is shared
 (RSS Feeds · AI Content Generation · Author Permission · Audit Logging)

@@ -1,4 +1,4 @@
-# Code Examples — Clinic AI Receptionist
+# Code Examples — Healthcare AI Receptionist
 
 JavaScript, prompts and node configuration taken directly from [`workflow.json`](./workflow.json). Sanitized of client-specific data.
 

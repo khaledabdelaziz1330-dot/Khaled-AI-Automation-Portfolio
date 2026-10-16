@@ -1,4 +1,4 @@
-# Architecture — Hostzera AI Chat Widget
+# Architecture — RAG Sales & Support Assistant — Hostzera
 
 Retrieval-grounded AI chat widget. The model is instructed to answer only from verified company data retrieved from Google Sheets, never from its training data, and to escalate when that data does not cover the question. Measured hallucination rate: ~0.5% (see [PERFORMANCE.md](PERFORMANCE.md)).
 

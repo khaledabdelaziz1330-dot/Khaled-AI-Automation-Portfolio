@@ -1,4 +1,4 @@
-# Architecture — Lead Generation & AI Outreach Engine
+# Architecture — AI Prospecting & Outreach Pipeline
 
 Lead generation pipeline with a mandatory human approval gate. Built for marketing agencies running cold outreach campaigns at scale without sacrificing sender reputation.
 

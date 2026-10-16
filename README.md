@@ -30,12 +30,12 @@ The public systems below show the same engineering approach on work I can share.
 
 ## Featured systems
 
-Three AI agents — conversational, retrieval-grounded and autonomous — and two AI pipelines.
+Three AI agents — conversational, retrieval-grounded and brand-voice — and two AI pipelines, each with measured results.
 
-### Clinic AI Receptionist
+### Healthcare AI Receptionist
 **n8n · OpenAI (gpt-4o, gpt-4o-mini) · Google Calendar · Google Sheets · Meta Graph API · Telegram**
 
-![Clinic AI Receptionist workflow](./clinic-booking-system/clinic%20workflow.jpg)
+![Healthcare AI receptionist workflow](./clinic-booking-system/clinic%20workflow.jpg)
 
 One webhook receives patient messages from four channels and normalizes them into a single schema. A deterministic gpt-4o-mini classifier routes each message; gpt-4o extracts booking details as JSON; **free slots are computed in code from live Google Calendar data, in the clinic's time zone** — the model never decides availability. Replies return through the channel the patient used, in Arabic or English.
 
@@ -43,10 +43,10 @@ One webhook receives patient messages from four channels and normalizes them int
 
 [README](./clinic-booking-system) · [Architecture](./clinic-booking-system/architecture.md) · [Performance](./clinic-booking-system/PERFORMANCE.md) · [KPI analytics (Python + SQL)](./clinic-booking-system/analytics) · [Setup guide](./clinic-booking-system/setup.md) · [Tests](./tests/clinic.test.js)
 
-### Hostzera — Retrieval-Grounded Chat Assistant
+### RAG Sales & Support Assistant — Hostzera
 **n8n · Anthropic Claude · Google Sheets · JavaScript**
 
-![Hostzera chat assistant workflow](./hostzera-chat-widget/chat-widget-workflow.png)
+![RAG sales and support assistant workflow](./hostzera-chat-widget/chat-widget-workflow.png)
 
 Every visitor message is scored against a staff-editable knowledge base; only the top five rows reach Claude, which is instructed to answer from that context alone and hand off when it cannot. Knowledge-base retrieval and session history load in parallel and merge before a single model call.
 
@@ -54,26 +54,26 @@ Every visitor message is scored against a staff-editable knowledge base; only th
 
 [README](./hostzera-chat-widget) · [Architecture](./hostzera-chat-widget/architecture.md) · [Performance](./hostzera-chat-widget/PERFORMANCE.md) · [Tests](./tests/hostzera.test.js)
 
-### Autonomous Engagement Agents — X & Instagram
+### Brand-Voice AI Agents — Climate-Tech Company (X & Instagram)
 **n8n · AWS Bedrock · Apify · Unipile · Google Sheets · JavaScript**
 
 <table>
   <tr>
-    <td width="50%"><a href="./x-engagement-system"><img src="./x-engagement-system/x-engagement-workflow.jpg" alt="X engagement agent workflow" width="100%"></a></td>
-    <td width="50%"><a href="./instagram-engagement-system"><img src="./instagram-engagement-system/instagram-engagement-workflow.jpg" alt="Instagram engagement agent workflow" width="100%"></a></td>
+    <td width="50%"><a href="./x-engagement-system"><img src="./x-engagement-system/x-engagement-workflow.jpg" alt="Brand-voice AI agent for X workflow" width="100%"></a></td>
+    <td width="50%"><a href="./instagram-engagement-system"><img src="./instagram-engagement-system/instagram-engagement-workflow.jpg" alt="Brand-voice AI agent for Instagram workflow" width="100%"></a></td>
   </tr>
 </table>
 
-Two agents that run a brand's engagement end to end with no human in the loop. Each discovers relevant posts, then **an AWS Bedrock classifier decides what is worth answering** — a topic / substance / fit test returned as structured JSON, failing closed and refusing memes, venting and tragedy posts. Replies are drafted in the brand's voice and pass hard guardrails before anything is posted: daily caps, one reply per author, active hours, a similarity check against recent replies, and a lock that prevents double-posting. A self-healing queue reclaims work interrupted by a crash, and repeated failures park for human review.
+Two AI agents that represent a climate-tech company on X and Instagram. They find conversations where the company's expertise adds value, and **an AWS Bedrock classifier decides which ones deserve a response** — a topic / substance / fit test returned as structured JSON that fails closed and declines memes, venting and tragedy posts. Every reply is written in the company's expert voice and passes brand-safety guardrails before it goes live: daily caps, one reply per author, active hours, a similarity check against recent replies, and a lock that prevents double-posting. A self-healing queue recovers work interrupted by a restart, and repeated failures are held for human review.
 
-**Impact (climate-tech brand, in production):** replaces ~1–2 hours a day of skilled engagement work · up to 24 expert replies a day on X · full Instagram lifecycle with zero manual steps.
+**Impact (in production):** the equivalent of 1–2 hours of expert work every day · up to 24 expert replies a day on X · Instagram handled end to end, from discovery to published comment.
 
 [X agent](./x-engagement-system) · [Instagram agent](./instagram-engagement-system)
 
-### Document Automation — PDF to Excel
+### Document Intelligence Pipeline — Construction Specifications
 **n8n · OpenAI (gpt-4o) · JavaScript · Gmail · Google Sheets**
 
-![Document automation workflow](./document-automation-system/document-automation-workflow.png)
+![Document intelligence pipeline workflow](./document-automation-system/document-automation-workflow.png)
 
 Specification PDFs arrive by email. The LLM extracts handling instructions ("reuse 40%, dispose 30%") as structured rules, exactly as written. **Every calculation, aggregation and validation runs in deterministic code**, and a QA gate routes any run with warnings to human review instead of delivering it.
 
@@ -81,16 +81,47 @@ Specification PDFs arrive by email. The LLM extracts handling instructions ("reu
 
 [README](./document-automation-system) · [Architecture](./document-automation-system/architecture.md) · [Performance](./document-automation-system/PERFORMANCE.md) · [Tests](./tests/document-automation.test.js)
 
-### Lead Generation & Outreach Engine
+### AI Prospecting & Outreach Pipeline
 **n8n · Apify · ZeroBounce · OpenAI (gpt-4o) · Google Sheets · Telegram**
 
-![Lead generation workflow](./lead-generation-system/lead-generation-workflow.png)
+![AI prospecting and outreach pipeline workflow](./lead-generation-system/lead-generation-workflow.png)
 
 Runs weekly per campaign. Businesses are collected from Google Maps, normalized and **deduplicated by email, phone and domain** against every lead already in the database; addresses are verified with ZeroBounce; gpt-4o drafts a personalized message; **nothing goes out until an operator approves it in Telegram**.
 
 **Impact:** <2% bounce rate · 8–12% reply rate · ~150 verified, approved leads per week per campaign · ~$0.04–0.08 per lead.
 
 [README](./lead-generation-system) · [Architecture](./lead-generation-system/architecture.md) · [Performance](./lead-generation-system/PERFORMANCE.md) · [Tests](./tests/lead-generation.test.js)
+
+---
+
+## More systems
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./gym-lead-management"><img src="./gym-lead-management/gym%20workflow.jpg" alt="Fitness lead-to-member pipeline workflow" width="100%"></a><br>
+      <b><a href="./gym-lead-management">Fitness Lead-to-Member Pipeline</a></b> · <sub>Production, single location</sub><br>
+      <sub>Captures leads from three channels, qualifies them with AI and books trial classes: <b>1,450</b> inbound messages → <b>522</b> trials → <b>137</b> new members in 90 days</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./beauty-center-reception-workflow"><img src="./beauty-center-reception-workflow/beauty%20center%20workflow.jpg" alt="AI booking concierge workflow" width="100%"></a><br>
+      <b><a href="./beauty-center-reception-workflow">AI Booking Concierge — Beauty & Wellness</a></b> · <sub>Production</sub><br>
+      <sub>Matches informal requests to the right service and specialist, then books: <b>86%</b> first-message service match · <b>zero</b> double bookings</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./holistic-wellness-club"><img src="./holistic-wellness-club/screenshots/photo_1_2026-02-20_08-16-52.jpg" alt="Client lifecycle system pipeline" width="100%"></a><br>
+      <b><a href="./holistic-wellness-club">Client Lifecycle System — Wellness Club</a></b> · <sub>Built and tested in staging</sub><br>
+      <sub>GoHighLevel + n8n: bookings, reminders, nurture and reviews in one client journey, with an event log that catches webhook retries</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./marketing-lead-engine"><img src="./marketing-lead-engine/marketing-lead-engine-workflow.png" alt="Permission-first AI content pipeline workflow" width="100%"></a><br>
+      <b><a href="./marketing-lead-engine">Permission-First AI Content Pipeline</a></b> · <sub>Working build</sub><br>
+      <sub>Turns industry articles into credited LinkedIn drafts and asks each author for consent first — only through contacts the publisher lists</sub>
+    </td>
+  </tr>
+</table>
 
 ---
 
@@ -111,46 +142,15 @@ The same engineering bar applies to every system, and it is **checked automatica
 
 ---
 
-## More systems
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="./gym-lead-management"><img src="./gym-lead-management/gym%20workflow.jpg" alt="Gym lead management workflow" width="100%"></a><br>
-      <b><a href="./gym-lead-management">Gym Lead Management</a></b> · <sub>Production, single location</sub><br>
-      <sub>Multi-channel lead capture → trial booking → membership: <b>1,450</b> inbound messages → <b>522</b> trials → <b>137</b> members in 90 days</sub>
-    </td>
-    <td width="50%" valign="top">
-      <a href="./beauty-center-reception-workflow"><img src="./beauty-center-reception-workflow/beauty%20center%20workflow.jpg" alt="Beauty center reception workflow" width="100%"></a><br>
-      <b><a href="./beauty-center-reception-workflow">Beauty Center Reception</a></b> · <sub>Production</sub><br>
-      <sub>Service matching and specialist booking: <b>86%</b> first-message service match · <b>zero</b> double bookings</sub>
-    </td>
-  </tr>
-  <tr>
-    <td width="50%" valign="top">
-      <a href="./holistic-wellness-club"><img src="./holistic-wellness-club/screenshots/photo_1_2026-02-20_08-16-52.jpg" alt="Wellness club GoHighLevel pipeline" width="100%"></a><br>
-      <b><a href="./holistic-wellness-club">Wellness Club — GoHighLevel + n8n</a></b> · <sub>Built and tested in staging</sub><br>
-      <sub>Full client journey in GoHighLevel — bookings, reminders, nurture, reviews — with an n8n event log that catches webhook retries</sub>
-    </td>
-    <td width="50%" valign="top">
-      <a href="./marketing-lead-engine"><img src="./marketing-lead-engine/marketing-lead-engine-workflow.png" alt="Marketing content pipeline workflow" width="100%"></a><br>
-      <b><a href="./marketing-lead-engine">Marketing Content Pipeline</a></b> · <sub>Working build</sub><br>
-      <sub>RSS → AI rewrite → permission request to the author, sent only to a contact the publisher lists — consent before anything is shared</sub>
-    </td>
-  </tr>
-</table>
-
----
-
 ## Career & where each system comes from
 
 | Period | Role | Systems in this repository |
 |---|---|---|
 | Jun 2026 – present | **AI Engineer, Quara Holding** | Confidential (see *Current role*) |
-| Jan – Jun 2026 | **AI Automation Engineer, Hostzera** (web hosting, Netherlands) | [Hostzera Chat Assistant](./hostzera-chat-widget) · automation that cut manual data entry by **80%** across HubSpot, Airtable and GoHighLevel |
-| Jul – Dec 2025 | **AI Automation Engineer, OMB** (marketing agency, Netherlands) | [Lead Generation & Outreach](./lead-generation-system) · lead systems processing **150+ leads/month** · AI content workflow that cut production time by **70%** |
-| Jan – Jun 2025 | **Independent — healthcare, fitness & beauty clients** | [Clinic AI Receptionist](./clinic-booking-system) · [Gym Lead Management](./gym-lead-management) · [Beauty Center Reception](./beauty-center-reception-workflow) · [Wellness Club](./holistic-wellness-club) |
-| Client & independent builds | Construction, climate-tech and content | [Document Automation](./document-automation-system) · [X Agent](./x-engagement-system) · [Instagram Agent](./instagram-engagement-system) · [Marketing Content Pipeline](./marketing-lead-engine) |
+| Jan – Jun 2026 | **AI Automation Engineer, Hostzera** (web hosting, Netherlands) | [RAG Sales & Support Assistant](./hostzera-chat-widget) · automation that cut manual data entry by **80%** across HubSpot, Airtable and GoHighLevel |
+| Jul – Dec 2025 | **AI Automation Engineer, OMB** (marketing agency, Netherlands) | [AI Prospecting & Outreach Pipeline](./lead-generation-system) · lead systems processing **150+ leads/month** · AI content workflow that cut production time by **70%** |
+| Jan – Jun 2025 | **Independent — healthcare, fitness & beauty clients** | [Healthcare AI Receptionist](./clinic-booking-system) · [Fitness Lead-to-Member Pipeline](./gym-lead-management) · [AI Booking Concierge](./beauty-center-reception-workflow) · [Client Lifecycle System](./holistic-wellness-club) |
+| Client & independent builds | Construction, climate-tech and content | [Document Intelligence Pipeline](./document-automation-system) · [Brand-Voice AI Agents — X](./x-engagement-system) and [Instagram](./instagram-engagement-system) · [Permission-First AI Content Pipeline](./marketing-lead-engine) |
 
 ---
 

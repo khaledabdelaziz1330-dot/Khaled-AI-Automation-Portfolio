@@ -1,4 +1,4 @@
-# Architecture — Holistic Wellness Club (GHL + n8n)
+# Architecture — Client Lifecycle System — Wellness Club (GoHighLevel + n8n)
 
 Two-layer architecture: **GoHighLevel handles the client journey, n8n handles backend logging and reliability.** The separation lets each tool do what it does best.
 

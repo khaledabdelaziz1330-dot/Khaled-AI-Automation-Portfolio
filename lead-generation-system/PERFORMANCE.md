@@ -1,4 +1,4 @@
-# Performance Characteristics — Lead Generation Engine
+# Performance Characteristics — AI Prospecting & Outreach Pipeline
 
 Production metrics from running cold outreach campaigns for marketing agencies. Deliverability and reply metrics cover the full outreach loop, including the approval-handling and send steps that sit outside the exported [`workflow.json`](workflow.json).
 

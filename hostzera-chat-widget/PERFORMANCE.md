@@ -1,4 +1,4 @@
-# Performance Characteristics — Hostzera AI Chat Widget
+# Performance Characteristics — RAG Sales & Support Assistant — Hostzera
 
 Production metrics from the retrieval-grounded chat widget running on hostzera.com.
 

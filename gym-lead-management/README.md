@@ -1,4 +1,4 @@
-# Gym Lead Management System
+# Fitness Lead-to-Member Pipeline
 
 Multi-channel lead capture and trial-booking pipeline for gyms and fitness centers
 (WhatsApp · Instagram · Facebook Messenger)

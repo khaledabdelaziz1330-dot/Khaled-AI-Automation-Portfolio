@@ -1,4 +1,4 @@
-# Document Automation System
+# Document Intelligence Pipeline — Construction Specifications
 
 AI-assisted document processing pipeline for construction specification instructions
 (Gmail Intake · PDF Parsing · AI Extraction · Deterministic Calculations · QA Gate)

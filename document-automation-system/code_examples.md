@@ -1,4 +1,4 @@
-# Code Examples — Document Automation System
+# Code Examples — Document Intelligence Pipeline — Construction Specifications
 
 Production code from the PDF-to-Excel pipeline, taken verbatim from the nodes in [`workflow.json`](workflow.json). It embodies the system's core principle: **AI extracts rules, deterministic code performs every calculation**.
 

@@ -1,4 +1,4 @@
-# Architecture — Marketing Content Pipeline
+# Architecture — Permission-First AI Content Pipeline
 
 Ethical content marketing automation. **Permission-based, not theft-based.** The pipeline drafts a post and asks the original author for consent; it never publishes on its own.
 

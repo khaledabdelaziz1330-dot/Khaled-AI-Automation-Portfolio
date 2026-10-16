@@ -1,4 +1,4 @@
-# Code Examples — Holistic Wellness Club (GHL + n8n)
+# Code Examples — Client Lifecycle System — Wellness Club (GoHighLevel + n8n)
 
 Code taken directly from [`workflow.json`](workflow.json), the n8n event logger and reminder scheduler. GoHighLevel handles the client-facing journey; this workflow handles backend reliability and event logging.
 

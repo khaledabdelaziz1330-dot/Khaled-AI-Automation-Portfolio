@@ -1,4 +1,4 @@
-# Architecture — Gym Lead Management System
+# Architecture — Fitness Lead-to-Member Pipeline
 
 Pipeline tracking from first inbound message to booked trial, in production at one gym location (1,450 inbound messages over 90 days). This document covers the exported [`workflow.json`](./workflow.json) and marks where the production follow-up layer takes over.
 

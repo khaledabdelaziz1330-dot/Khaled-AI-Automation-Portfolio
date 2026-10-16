@@ -1,4 +1,4 @@
--- Clinic AI Receptionist — KPI queries
+-- Healthcare AI Receptionist — KPI queries
 --
 -- The metrics in PERFORMANCE.md ("Outcome Metrics"), defined precisely in SQL.
 -- kpi_report.py implements the same definitions in Python; the tests check that both agree.

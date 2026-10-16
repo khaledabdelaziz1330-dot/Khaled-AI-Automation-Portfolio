@@ -1,4 +1,4 @@
-# Code Examples — Beauty Center AI Reception
+# Code Examples — AI Booking Concierge — Beauty & Wellness
 
 JavaScript, prompts and node configuration taken directly from [`workflow.json`](./workflow.json): service matching, specialist booking with conflict checks, and the client record that personalizes the next visit. Section 5 shows a production component that is not part of the export.
 

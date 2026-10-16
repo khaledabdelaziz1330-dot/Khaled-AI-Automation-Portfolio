@@ -1,4 +1,4 @@
-# Architecture — Clinic AI Receptionist
+# Architecture — Healthcare AI Receptionist
 
 System architecture, design decisions and data flow for the exported workflow ([`workflow.json`](./workflow.json)).
 

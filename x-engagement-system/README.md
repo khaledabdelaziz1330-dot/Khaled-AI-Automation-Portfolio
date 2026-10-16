@@ -1,10 +1,10 @@
-# Autonomous X (Twitter) Engagement Agent
+# Brand-Voice AI Agent for X — Climate-Tech Company
 
-**Fully unattended AI engagement system** — discovers relevant X posts about urban heat, climate, and energy, judges each with an LLM, and posts on-brand expert replies to the best ones. Built for a climate-tech brand and run in production on a daily schedule with no human in the loop.
+**An AI agent that represents a climate-tech company on X** — it finds conversations about urban heat, climate and energy where the company's expertise adds value, judges each with an LLM, and replies to the best ones in the company's expert voice. Ran in production on a daily schedule, within strict brand-safety guardrails.
 
 **Stack:** n8n · AWS Bedrock (LLM) · Apify · Google Sheets · JavaScript
 **Architecture:** One n8n workflow with two independently scheduled pipelines (Scraper + Commenter) linked by a shared Google Sheets queue, plus a separate error-alert workflow
-**Status:** Ran fully unattended in production for a climate-tech brand
+**Status:** In production for a climate-tech company — daily schedule, brand-safety guardrails
 
 ![X engagement workflow](./x-engagement-workflow.jpg)
 
@@ -12,7 +12,7 @@
 
 ## The problem
 
-Consistent, high-quality engagement on X takes hours of skilled work every day: finding relevant conversations, filtering out noise, writing replies that sound like an expert (not a bot), and spacing them naturally. Discovering, vetting, writing, and pacing each quality reply takes ~3–5 minutes — at 20–24 replies/day, that's **~1–2 hours of skilled daily work**. This system does all of it unattended.
+Consistent, high-quality engagement on X takes hours of skilled work every day: finding relevant conversations, filtering out noise, writing replies with genuine expertise, and keeping a steady, measured cadence. Discovering, vetting, writing, and pacing each quality reply takes ~3–5 minutes — at 20–24 replies/day, that's **~1–2 hours of skilled daily work**. This agent does all of it within the company's guardrails.
 
 ## The system
 
@@ -55,7 +55,7 @@ Consistent, high-quality engagement on X takes hours of skilled work every day: 
 | Kept as relevant by the classifier | ~35–55% (observed run: 42 of 85) |
 | New relevant posts queued daily | ~15–40 |
 | Replies posted | up to 24/day, max 1 per author |
-| Skilled work replaced | **~1–2 hours per day, fully unattended** (20–24 replies × 3–5 min) |
+| Expert work handled | **~1–2 hours per day** (20–24 replies × 3–5 min) |
 
 ---
 

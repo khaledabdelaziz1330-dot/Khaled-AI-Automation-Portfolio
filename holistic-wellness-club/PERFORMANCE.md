@@ -1,4 +1,4 @@
-# Performance Characteristics — Wellness Club GHL + n8n System
+# Performance Characteristics — Client Lifecycle System — Wellness Club (GoHighLevel + n8n)
 
 The system was built and tested in a GoHighLevel staging sub-account (February 2026) and has not yet run with live clients, so this page reports no production metrics. It documents the performance-relevant design, the expected running cost, and the known limits.
 

@@ -1,4 +1,4 @@
-# Code Examples — Hostzera AI Chat Widget
+# Code Examples — RAG Sales & Support Assistant — Hostzera
 
 Production JavaScript from the retrieval-grounded chat widget, taken verbatim from the Code and HTTP Request nodes in [`workflow.json`](workflow.json). The design goal: retrieve verified knowledge-base data before any LLM call, and make that data the only context the model is allowed to use.
 

@@ -1,4 +1,4 @@
-# Beauty Center Reception Workflow
+# AI Booking Concierge — Beauty & Wellness
 
 Multi-service booking and reception system for beauty centers and salons
 (WhatsApp · Instagram · Facebook Messenger)

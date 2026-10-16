@@ -1,4 +1,4 @@
-# Architecture — Document Automation System
+# Architecture — Document Intelligence Pipeline — Construction Specifications
 
 PDF-to-Excel pipeline for construction specifications. **Core principle: AI for language, code for math.** The LLM never touches arithmetic.
 
