@@ -41,7 +41,7 @@ A lead generation pipeline that automates the work from **finding prospects** to
 2. **Deduplicate** — rejects any lead whose email, digits-only phone or website domain is already known, including duplicates within the same batch, and assigns a `lead_id` to each new lead
 
 ### Phase 3: Email Verification
-1. **ZeroBounce Verify** — validates each address (10 s timeout, up to 4 attempts, 2 s apart)
+1. **ZeroBounce Verify** — validates each address (10 s timeout, up to 3 attempts, 2 s apart)
 2. **Filter Verified** — computes `should_send` from verification status, free-provider flag and disposable status
 3. **Is Verified?** — only verified leads continue
 

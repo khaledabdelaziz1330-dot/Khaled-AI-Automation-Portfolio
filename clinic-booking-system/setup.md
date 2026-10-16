@@ -63,7 +63,7 @@ TELEGRAM_BOT_TOKEN="<botfather-token>"
 # n8n runtime
 N8N_BLOCK_ENV_ACCESS_IN_NODE=false   # the workflow reads $env in node parameters
 GENERIC_TIMEZONE="Africa/Cairo"      # matches the workflow's timezone setting
-TZ="Africa/Cairo"                    # Code-node date math runs in server local time
+TZ="Africa/Cairo"                    # optional — slot math is time-zone independent (uses Africa/Cairo explicitly)
 ```
 
 **Scheduling rules** (business hours 09:00–19:00, 30-minute slots, 15-minute buffer, 30-minute lead time, Fridays closed) are constants at the top of the `Calculate Availability` Code node. Edit them there for a different clinic.
@@ -175,7 +175,7 @@ API costs cover OpenAI and WhatsApp Business messaging; Google Sheets and Calend
 ### Offered slots look wrong
 1. Verify `CLINIC_CALENDAR_ID` points to the clinic's booking calendar
 2. Verify the Google Calendar OAuth credential is still authorized
-3. Verify `TZ` on the n8n container matches the clinic's timezone — slot generation uses server local time
+3. If the clinic is not in Cairo, change `CLINIC_TZ` at the top of `Calculate Availability` — slot generation does not depend on the server's `TZ`
 
 ### Responses are slow (> 5 seconds)
 1. Check the OpenAI status page for degradation

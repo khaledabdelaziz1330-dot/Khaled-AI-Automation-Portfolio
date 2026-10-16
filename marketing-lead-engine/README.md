@@ -23,8 +23,9 @@ Schedule Trigger (every 6 hours)
         → Filter new & recent (< 48 hours, title + snippet required)
           → AI rewrite (OpenAI GPT-4o, JSON output) → LinkedIn post draft
             → Compose permission request email (draft included)
-              → Send via Gmail
-                → Log request (PermissionRequests: pending_response, 7-day deadline)
+              → Has a verified contact? (address published in the feed)
+                  yes → Send via Gmail → Log request (pending_response, 7-day deadline)
+                  no  → Log request (needs_contact — no email is sent)
                 → Mark article as seen (SeenArticles)
 
 Failures → workflow-level Error Workflow setting
@@ -38,7 +39,7 @@ A permission-first content pipeline for marketing teams: it monitors curated sou
 
 - Pulls the latest articles from a sheet-managed list of RSS feeds on a schedule
 - Uses AI to rewrite each article into a LinkedIn-style post draft that credits and links the original
-- Emails the original author with the draft and asks for permission to share it
+- Emails the original author with the draft and asks for permission to share it — **only at an address the publisher lists in the feed; addresses are never guessed**
 - Logs every request with its draft, the facts preserved, status, and response deadline
 - Publishes nothing on its own: the PermissionRequests sheet is the hand-off point for replies and publishing
 
@@ -57,9 +58,10 @@ A permission-first content pipeline for marketing teams: it monitors curated sou
    - Output is structured JSON: the post, the list of facts preserved, and rewrite notes
 
 3. **Ask the author for permission**
-   - Infers a best-effort author address (`firstname.lastname@domain`, or `editor@domain` when the author is unknown)
-   - Sends a short email via Gmail with the full draft, asking whether the author is comfortable with it being shared, or would like edits
-   - Logs the request as `pending_response` with a 7-day response deadline
+   - Uses the author's contact address only if the publisher includes it in the feed (the RSS `<author>` field, e.g. `jane@site.com (Jane Doe)`)
+   - **No address is ever inferred or guessed** — unsolicited email to guessed personal addresses is a GDPR / PDPL risk and damages sender reputation
+   - With a verified address: sends a short email via Gmail with the full draft, asking whether the author is comfortable with it being shared, and logs the request as `pending_response` with a 7-day deadline
+   - Without one: logs the request as `needs_contact` so a person can find the right channel; nothing is sent
 
 4. **Track**
    - Every request is appended to PermissionRequests; every processed article is marked in SeenArticles

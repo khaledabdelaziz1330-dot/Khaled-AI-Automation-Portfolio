@@ -67,8 +67,7 @@ Standard tools scrape and republish without asking. This pipeline asks first.
 ## Where this hits limits
 
 - **High-frequency news cycles:** the permission step adds up to a 7-day delay. Not suitable for breaking news.
-- **Inferred author emails:** addresses are guessed from the author name and article domain and are not verified, so some requests will bounce or reach a generic inbox. An email-finder or verification step would improve delivery.
-- **Anonymous-author sources:** articles with no detectable author go to `editor@domain`, which limits sourcing options.
+- **Verified contacts only:** authors are emailed only when the feed publishes their address. Many feeds list just a name, so a share of articles lands as `needs_contact` and needs a person to find the right channel — a deliberate trade of reach for compliance and sender reputation.
 - **Replies are not parsed:** reply handling and publishing are manual from the PermissionRequests sheet; automating them needs a reply-ingestion and approval stage.
 - **URL-only dedup:** the same story syndicated under different URLs can be drafted twice.
 - **Facts are self-reported:** `facts_preserved` comes from the model itself; there is no independent fact check.

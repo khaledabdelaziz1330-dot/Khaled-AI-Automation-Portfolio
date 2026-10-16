@@ -125,6 +125,8 @@ flowchart TD
 - 30-minute minimum lead time; Fridays closed
 - Starts at the requested date and scans forward up to 7 days until at least 5 free slots are found
 - Returns the 3 slots closest to the preferred time, formatted in the clinic's timezone
+- All slot math runs in clinic time (`Africa/Cairo`, daylight-saving aware) regardless of the server's time zone — a UTC server still offers 09:00–19:00 Cairo time
+- Covered by automated tests in [`tests/clinic.test.js`](../tests/clinic.test.js)
 
 The reply model receives only these slots and is instructed: *"Do NOT make up slot times. Use ONLY what is provided."* The model never decides availability; only the code does.
 

@@ -70,7 +70,7 @@ The single hallucination was investigated: the model inferred a discount from co
 ## Reliability (90-day window)
 
 - **Uptime:** 99.6%
-- **Claude API failures:** 0.3% of calls (the HTTP node retries up to 3 attempts, 1.5 s apart)
+- **Claude API failures:** 0.3% of calls (the HTTP node retries up to 3 attempts, 2 s apart)
 - **Google Sheets failures:** 0.1% (surfaced to the shared error handler)
 - **Total customer-visible errors:** <0.1%
 

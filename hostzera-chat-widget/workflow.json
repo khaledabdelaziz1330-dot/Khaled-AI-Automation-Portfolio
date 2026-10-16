@@ -189,7 +189,7 @@
       },
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 1500,
+      "waitBetweenTries": 2000,
       "id": "http-claude",
       "name": "Claude Response",
       "type": "n8n-nodes-base.httpRequest",

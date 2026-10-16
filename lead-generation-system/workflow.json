@@ -177,7 +177,7 @@
         }
       },
       "retryOnFail": true,
-      "maxTries": 4,
+      "maxTries": 3,
       "waitBetweenTries": 2000,
       "id": "zerobounce",
       "name": "ZeroBounce Verify",

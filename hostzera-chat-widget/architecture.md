@@ -122,7 +122,7 @@ Summary of [PERFORMANCE.md](PERFORMANCE.md):
 ## Reliability features
 
 1. **Input validation** — Malformed payloads and messages over 1,000 characters are rejected before any API call
-2. **Retry on the model call** — The Claude HTTP node retries transient failures (3 attempts, 1.5 s apart, 15 s timeout)
+2. **Retry on the model call** — The Claude HTTP node retries transient failures (3 attempts, 2 s apart, 15 s timeout)
 3. **Polite refusal** — Out-of-scope questions get a hand-off message, not a fabricated answer
 4. **Human handoff** — The prompt routes uncovered questions to the Hostzera team
 5. **Bounded context** — Only the top 5 KB rows and the last 10 turns are sent, keeping prompts small and cost predictable

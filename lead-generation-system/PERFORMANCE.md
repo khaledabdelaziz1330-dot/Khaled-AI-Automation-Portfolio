@@ -68,7 +68,7 @@ The single most important number above: bounce rate < 2%. That is the difference
 
 - **Pipeline success rate (end-to-end):** 96%
 - **Apify scraping failures:** 2% (surfaced to the shared error handler; the next weekly run re-scrapes, and deduplication prevents double entries)
-- **ZeroBounce timeouts:** 1% (retried up to 4 attempts, 2 s apart)
+- **ZeroBounce timeouts:** 1% (retried up to 3 attempts, 2 s apart)
 - **OpenAI rate limits hit:** 5-10% of runs (the reason AI personalization is capped at 60-120 leads/hour)
 
 ---

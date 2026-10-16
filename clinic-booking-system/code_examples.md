@@ -164,29 +164,47 @@ The "code handles math" principle in practice. The model extracted the preferenc
 const extracted = JSON.parse($('Extract Booking Details').first().json.message.content);
 const calendarEvents = $('Get Calendar Events').all().map(e => e.json);
 
-// Business configuration
-const BUSINESS_HOURS = { start: 9, end: 19 }; // 9am-7pm
+// Business configuration — all times are clinic-local, independent of the server's time zone
+const CLINIC_TZ = 'Africa/Cairo';
+const BUSINESS_HOURS = { start: 9, end: 19 }; // 9am-7pm clinic time
 const SLOT_DURATION_MIN = 30;
 const BUFFER_MIN = 15;
-const TIMEZONE_OFFSET_HOURS = 2; // Cairo GMT+2
+const LEAD_TIME_MIN = 30;
+const CLOSED_WEEKDAYS = [5]; // Friday
 
-function getSlotsForDate(dateISO) {
-  const date = new Date(dateISO + 'T00:00:00');
+// UTC offset of the clinic's time zone at a given instant, in minutes (handles daylight saving)
+function tzOffsetMinutes(instant) {
+  const label = new Intl.DateTimeFormat('en-US', { timeZone: CLINIC_TZ, timeZoneName: 'longOffset' })
+    .formatToParts(instant)
+    .find(p => p.type === 'timeZoneName').value; // e.g. "GMT+02:00", or "GMT" for UTC
+  const m = label.match(/GMT([+-])(\d{2}):?(\d{2})?/);
+  if (!m) return 0;
+  return (m[1] === '-' ? -1 : 1) * (Number(m[2]) * 60 + Number(m[3] || 0));
+}
+
+// Clinic wall-clock time -> absolute instant
+function clinicTime(y, mo, d, hour, minute) {
+  const asUtc = Date.UTC(y, mo - 1, d, hour, minute);
+  return new Date(asUtc - tzOffsetMinutes(new Date(asUtc)) * 60000);
+}
+
+function addDays(dateStr, days) {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, mo - 1, d + days)).toISOString().slice(0, 10);
+}
+
+function getSlotsForDate(dateStr) {
+  const [y, mo, d] = dateStr.split('-').map(Number);
+  const weekday = new Date(Date.UTC(y, mo - 1, d)).getUTCDay(); // calendar weekday of the clinic date
+  if (CLOSED_WEEKDAYS.includes(weekday)) return [];
+
+  const earliest = Date.now() + LEAD_TIME_MIN * 60000;
   const slots = [];
-  
-  // Skip Fridays (clinic closed)
-  if (date.getDay() === 5) return slots;
-  
   for (let hour = BUSINESS_HOURS.start; hour < BUSINESS_HOURS.end; hour++) {
     for (let min = 0; min < 60; min += SLOT_DURATION_MIN) {
-      const slotStart = new Date(date);
-      slotStart.setHours(hour, min, 0, 0);
-      const slotEnd = new Date(slotStart.getTime() + SLOT_DURATION_MIN * 60000);
-      
-      // Skip past slots (allow 30 min lead time minimum)
-      if (slotStart < new Date(Date.now() + 30 * 60000)) continue;
-      
-      slots.push({ start: slotStart, end: slotEnd });
+      const start = clinicTime(y, mo, d, hour, min);
+      if (start.getTime() < earliest) continue; // respect minimum lead time
+      slots.push({ start, end: new Date(start.getTime() + SLOT_DURATION_MIN * 60000), localMinutes: hour * 60 + min });
     }
   }
   return slots;
@@ -200,34 +218,25 @@ function isSlotFree(slot, events) {
   });
 }
 
-// Find slots for requested date OR next available dates
-const targetDate = extracted.preferred_date || $now.toFormat('yyyy-MM-dd');
-let freeSlots = [];
+// Requested date (validated) or today in clinic time
+const today = $now.setZone(CLINIC_TZ).toFormat('yyyy-MM-dd');
+const targetDate = /^\d{4}-\d{2}-\d{2}$/.test(extracted.preferred_date || '') ? extracted.preferred_date : today;
 
-// Check requested date first, then expand window if needed
+// Check the requested date first, then widen the window until enough options exist
+const freeSlots = [];
 for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
-  const checkDate = new Date(targetDate + 'T00:00:00');
-  checkDate.setDate(checkDate.getDate() + dayOffset);
-  const dateStr = checkDate.toISOString().slice(0, 10);
-  
-  const daySlots = getSlotsForDate(dateStr).filter(s => isSlotFree(s, calendarEvents));
-  freeSlots.push(...daySlots);
-  
+  freeSlots.push(...getSlotsForDate(addDays(targetDate, dayOffset)).filter(s => isSlotFree(s, calendarEvents)));
   if (freeSlots.length >= 5) break;
 }
 
-// Sort by preferred_time proximity if specified
+// Rank by closeness to the preferred clinic-local time, if one was given
 let recommended = freeSlots.slice(0, 3);
-if (extracted.preferred_time) {
+if (/^\d{1,2}:\d{2}$/.test(extracted.preferred_time || '')) {
   const [prefH, prefM] = extracted.preferred_time.split(':').map(Number);
   const prefMinutes = prefH * 60 + prefM;
-  
   recommended = freeSlots
-    .map(slot => ({
-      ...slot,
-      diff: Math.abs(slot.start.getHours() * 60 + slot.start.getMinutes() - prefMinutes),
-    }))
-    .sort((a, b) => a.diff - b.diff)
+    .map(slot => ({ ...slot, diff: Math.abs(slot.localMinutes - prefMinutes) }))
+    .sort((a, b) => a.diff - b.diff || a.start - b.start)
     .slice(0, 3);
 }
 
@@ -247,7 +256,7 @@ return [{
         hour: 'numeric',
         minute: '2-digit',
         hour12: true,
-        timeZone: 'Africa/Cairo',
+        timeZone: CLINIC_TZ,
       }),
     })),
   },

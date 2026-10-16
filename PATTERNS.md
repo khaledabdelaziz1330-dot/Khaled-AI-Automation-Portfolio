@@ -90,7 +90,7 @@ The sanitizer is tested against a synthetic failure containing a bearer token, a
 
 ## 4. Human-in-the-Loop Where It Matters
 
-**Where it appears:** `lead-generation-system` (mandatory), `marketing-lead-engine` (mandatory), `document-automation-system` (conditional on quality score).
+**Where it appears:** `lead-generation-system` (mandatory), `marketing-lead-engine` (mandatory), `document-automation-system` (any QA warning).
 
 **The rule:** When the cost of an AI mistake is high — outbound email, public publication, document delivery — a human approves before the action executes.
 
@@ -101,7 +101,7 @@ The sanitizer is tested against a synthetic failure containing a bearer token, a
 
 **Implementation patterns:**
 - **Hard gates** (`lead-generation-system`): No outbound without explicit Telegram approval
-- **Quality gates** (`document-automation-system`): Below 70% quality score routes to human review
+- **Quality gates** (`document-automation-system`): any QA warning — imbalanced percentages, duplicate items, invalid quantities — routes the run to human review; only clean runs auto-export
 - **Permission gates** (`marketing-lead-engine`): No publication without original author's explicit "yes"
 
 **Trade-off accepted:** Lower throughput. Higher reliability and trust.

@@ -9,9 +9,27 @@ Code and configuration taken directly from [`workflow.json`](workflow.json). RSS
 Runs after **Check If Already Seen** (a SeenArticles lookup per article URL). Keeps only unseen articles from the last 48 hours that have a title and snippet, and shapes them for the rewrite step.
 
 ```javascript
-// n8n Code Node — Filter New & Recent
-
 // Filter to only new + recent articles
+// RSS 2.0 <author> carries the author's *published* address, e.g. "jane@site.com (Jane Doe)".
+// Only an address the publisher put in the feed counts as a verified contact.
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/;
+
+function publishedContactEmail(article) {
+  const fields = [article.author, article['dc:creator'], article.creator].filter(v => typeof v === 'string');
+  for (const value of fields) {
+    const match = value.match(EMAIL_RE);
+    if (match) return match[0].toLowerCase();
+  }
+  return null;
+}
+
+function authorName(article) {
+  const raw = article.creator || article.author || '';
+  const inParens = raw.match(/\(([^)]+)\)/);
+  const name = (inParens ? inParens[1] : raw.replace(EMAIL_RE, '')).trim();
+  return name || extractAuthor(article.content);
+}
+
 const articles = $('Read RSS Feed').all();
 const seenLookup = $input.all();
 
@@ -38,7 +56,8 @@ const newArticles = articles
     article_id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     url: article.link,
     title: article.title,
-    author: article.creator || article.author || extractAuthor(article.content),
+    author: authorName(article),
+    author_contact_email: publishedContactEmail(article),
     content_snippet: (article.contentSnippet || article.content || '').slice(0, 2000),
     pub_date: article.pubDate || article.isoDate || new Date().toISOString(),
     discovered_at: new Date().toISOString(),
@@ -100,23 +119,15 @@ Content:
 Builds the permission email with the full draft attached, and the record that is logged to PermissionRequests.
 
 ```javascript
-// n8n Code Node — Compose Permission Request
-
 // Compose permission request email
+// Authors are emailed only at an address the publisher lists in the feed.
+// Addresses are never guessed: authors without one are logged as `needs_contact` for manual sourcing.
 const article = $('Filter New & Recent').item.json;
 const rewrite = JSON.parse($input.first().json.message.content);
 
-// Best-effort author email inference: firstname.lastname@domain, or editor@domain when the author is unknown
-function extractDomain(url) {
-  try { return new URL(url).hostname.replace('www.', ''); }
-  catch { return 'example.com'; }
-}
-
-const domain = extractDomain(article.url);
-const authorFirstName = (article.author || 'there').split(' ')[0];
-const likelyEmail = article.author !== 'Unknown'
-  ? `${article.author.toLowerCase().replace(/\s+/g, '.')}@${domain}`
-  : `editor@${domain}`;
+const authorEmail = article.author_contact_email || null;
+const hasName = article.author && article.author !== 'Unknown';
+const authorFirstName = hasName ? article.author.split(' ')[0] : 'there';
 
 const subject = `Permission to share your article on LinkedIn — "${article.title.slice(0, 50)}..."`;
 
@@ -129,14 +140,15 @@ return [{
     article_url: article.url,
     article_title: article.title,
     article_author: article.author,
-    author_email: likelyEmail,
+    author_email: authorEmail,
+    has_verified_contact: Boolean(authorEmail),
     subject,
     body,
     proposed_post: rewrite.linkedin_post,
     facts_preserved: rewrite.facts_preserved,
-    status: 'pending_response',
-    sent_at: new Date().toISOString(),
-    response_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    status: authorEmail ? 'pending_response' : 'needs_contact',
+    requested_at: new Date().toISOString(),
+    response_deadline: authorEmail ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null,
   },
 }];
 ```

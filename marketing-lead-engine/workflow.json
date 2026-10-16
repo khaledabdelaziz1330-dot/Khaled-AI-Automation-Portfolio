@@ -131,7 +131,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Filter to only new + recent articles\nconst articles = $('Read RSS Feed').all();\nconst seenLookup = $input.all();\n\nconst seenUrls = new Set(seenLookup.map(s => s.json.url));\n\nconst MAX_AGE_HOURS = 48;\nconst now = Date.now();\n\nfunction isRecent(pubDate) {\n  if (!pubDate) return false;\n  const age = (now - new Date(pubDate).getTime()) / (1000 * 60 * 60);\n  return age < MAX_AGE_HOURS;\n}\n\nconst newArticles = articles\n  .map(a => a.json)\n  .filter(article => {\n    if (seenUrls.has(article.link)) return false;\n    if (!isRecent(article.pubDate || article.isoDate)) return false;\n    if (!article.title || !article.contentSnippet) return false;\n    return true;\n  })\n  .map(article => ({\n    article_id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    url: article.link,\n    title: article.title,\n    author: article.creator || article.author || extractAuthor(article.content),\n    content_snippet: (article.contentSnippet || article.content || '').slice(0, 2000),\n    pub_date: article.pubDate || article.isoDate || new Date().toISOString(),\n    discovered_at: new Date().toISOString(),\n  }));\n\nfunction extractAuthor(content) {\n  if (!content) return 'Unknown';\n  const byline = content.match(/by\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+){1,2})/);\n  return byline ? byline[1] : 'Unknown';\n}\n\nreturn newArticles.map(a => ({ json: a }));"
+        "jsCode": "// Filter to only new + recent articles\n// RSS 2.0 <author> carries the author's *published* address, e.g. \"jane@site.com (Jane Doe)\".\n// Only an address the publisher put in the feed counts as a verified contact.\nconst EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}/;\n\nfunction publishedContactEmail(article) {\n  const fields = [article.author, article['dc:creator'], article.creator].filter(v => typeof v === 'string');\n  for (const value of fields) {\n    const match = value.match(EMAIL_RE);\n    if (match) return match[0].toLowerCase();\n  }\n  return null;\n}\n\nfunction authorName(article) {\n  const raw = article.creator || article.author || '';\n  const inParens = raw.match(/\\(([^)]+)\\)/);\n  const name = (inParens ? inParens[1] : raw.replace(EMAIL_RE, '')).trim();\n  return name || extractAuthor(article.content);\n}\n\nconst articles = $('Read RSS Feed').all();\nconst seenLookup = $input.all();\n\nconst seenUrls = new Set(seenLookup.map(s => s.json.url));\n\nconst MAX_AGE_HOURS = 48;\nconst now = Date.now();\n\nfunction isRecent(pubDate) {\n  if (!pubDate) return false;\n  const age = (now - new Date(pubDate).getTime()) / (1000 * 60 * 60);\n  return age < MAX_AGE_HOURS;\n}\n\nconst newArticles = articles\n  .map(a => a.json)\n  .filter(article => {\n    if (seenUrls.has(article.link)) return false;\n    if (!isRecent(article.pubDate || article.isoDate)) return false;\n    if (!article.title || !article.contentSnippet) return false;\n    return true;\n  })\n  .map(article => ({\n    article_id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    url: article.link,\n    title: article.title,\n    author: authorName(article),\n    author_contact_email: publishedContactEmail(article),\n    content_snippet: (article.contentSnippet || article.content || '').slice(0, 2000),\n    pub_date: article.pubDate || article.isoDate || new Date().toISOString(),\n    discovered_at: new Date().toISOString(),\n  }));\n\nfunction extractAuthor(content) {\n  if (!content) return 'Unknown';\n  const byline = content.match(/by\\s+([A-Z][a-z]+(?:\\s+[A-Z][a-z]+){1,2})/);\n  return byline ? byline[1] : 'Unknown';\n}\n\nreturn newArticles.map(a => ({ json: a }));"
       },
       "id": "code-filter",
       "name": "Filter New & Recent",
@@ -186,7 +186,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Compose permission request email\nconst article = $('Filter New & Recent').item.json;\nconst rewrite = JSON.parse($input.first().json.message.content);\n\n// Best-effort author email inference: firstname.lastname@domain, or editor@domain when the author is unknown\nfunction extractDomain(url) {\n  try { return new URL(url).hostname.replace('www.', ''); }\n  catch { return 'example.com'; }\n}\n\nconst domain = extractDomain(article.url);\nconst authorFirstName = (article.author || 'there').split(' ')[0];\nconst likelyEmail = article.author !== 'Unknown'\n  ? `${article.author.toLowerCase().replace(/\\s+/g, '.')}@${domain}`\n  : `editor@${domain}`;\n\nconst subject = `Permission to share your article on LinkedIn — \"${article.title.slice(0, 50)}...\"`;\n\nconst body = `Hi ${authorFirstName},\\n\\nI read your article \"${article.title}\" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.\\n\\nI always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.\\n\\nWould you be comfortable with me posting this? Here is the draft:\\n\\n----\\n${rewrite.linkedin_post}\\n----\\n\\nIf yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.\\n\\nThanks for the great work,\\n[Your name]\\n\\n[This permission request was sent via an automated content pipeline that requires author consent before publishing.]`;\n\nreturn [{\n  json: {\n    permission_request_id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    article_id: article.article_id,\n    article_url: article.url,\n    article_title: article.title,\n    article_author: article.author,\n    author_email: likelyEmail,\n    subject,\n    body,\n    proposed_post: rewrite.linkedin_post,\n    facts_preserved: rewrite.facts_preserved,\n    status: 'pending_response',\n    sent_at: new Date().toISOString(),\n    response_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),\n  },\n}];"
+        "jsCode": "// Compose permission request email\n// Authors are emailed only at an address the publisher lists in the feed.\n// Addresses are never guessed: authors without one are logged as `needs_contact` for manual sourcing.\nconst article = $('Filter New & Recent').item.json;\nconst rewrite = JSON.parse($input.first().json.message.content);\n\nconst authorEmail = article.author_contact_email || null;\nconst hasName = article.author && article.author !== 'Unknown';\nconst authorFirstName = hasName ? article.author.split(' ')[0] : 'there';\n\nconst subject = `Permission to share your article on LinkedIn — \"${article.title.slice(0, 50)}...\"`;\n\nconst body = `Hi ${authorFirstName},\\n\\nI read your article \"${article.title}\" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.\\n\\nI always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.\\n\\nWould you be comfortable with me posting this? Here is the draft:\\n\\n----\\n${rewrite.linkedin_post}\\n----\\n\\nIf yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.\\n\\nThanks for the great work,\\n[Your name]\\n\\n[This permission request was sent via an automated content pipeline that requires author consent before publishing.]`;\n\nreturn [{\n  json: {\n    permission_request_id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    article_id: article.article_id,\n    article_url: article.url,\n    article_title: article.title,\n    article_author: article.author,\n    author_email: authorEmail,\n    has_verified_contact: Boolean(authorEmail),\n    subject,\n    body,\n    proposed_post: rewrite.linkedin_post,\n    facts_preserved: rewrite.facts_preserved,\n    status: authorEmail ? 'pending_response' : 'needs_contact',\n    requested_at: new Date().toISOString(),\n    response_deadline: authorEmail ? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() : null,\n  },\n}];"
       },
       "id": "code-compose",
       "name": "Compose Permission Request",
@@ -211,8 +211,8 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1780,
-        400
+        2000,
+        300
       ],
       "credentials": {
         "gmailOAuth2": {
@@ -235,7 +235,20 @@
           "value": "PermissionRequests"
         },
         "columns": {
-          "mappingMode": "autoMapInputData"
+          "mappingMode": "defineBelow",
+          "value": {
+            "permission_request_id": "={{ $('Compose Permission Request').item.json.permission_request_id }}",
+            "article_id": "={{ $('Compose Permission Request').item.json.article_id }}",
+            "article_url": "={{ $('Compose Permission Request').item.json.article_url }}",
+            "article_title": "={{ $('Compose Permission Request').item.json.article_title }}",
+            "article_author": "={{ $('Compose Permission Request').item.json.article_author }}",
+            "author_email": "={{ $('Compose Permission Request').item.json.author_email }}",
+            "status": "={{ $('Compose Permission Request').item.json.status }}",
+            "subject": "={{ $('Compose Permission Request').item.json.subject }}",
+            "proposed_post": "={{ $('Compose Permission Request').item.json.proposed_post }}",
+            "requested_at": "={{ $('Compose Permission Request').item.json.requested_at }}",
+            "response_deadline": "={{ $('Compose Permission Request').item.json.response_deadline }}"
+          }
         }
       },
       "id": "log-request",
@@ -243,8 +256,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2000,
-        320
+        2220,
+        400
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -283,8 +296,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        2000,
-        480
+        2440,
+        400
       ],
       "credentials": {
         "googleSheetsOAuth2Api": {
@@ -295,6 +308,37 @@
       "retryOnFail": true,
       "maxTries": 3,
       "waitBetweenTries": 2000
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.has_verified_contact }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "684ddc45-2fcb-48a7-ac57-2c8cceb33865",
+      "name": "Has Verified Contact?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1780,
+        400
+      ]
     }
   ],
   "pinData": {},
@@ -369,7 +413,7 @@
       "main": [
         [
           {
-            "node": "Send Permission Email",
+            "node": "Has Verified Contact?",
             "type": "main",
             "index": 0
           }
@@ -383,7 +427,31 @@
             "node": "Log Permission Request",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Has Verified Contact?": {
+      "main": [
+        [
+          {
+            "node": "Send Permission Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Log Permission Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Permission Request": {
+      "main": [
+        [
           {
             "node": "Mark as Seen",
             "type": "main",

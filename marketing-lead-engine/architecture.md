@@ -35,6 +35,7 @@ flowchart TD
 
     subgraph Permission [Permission Layer]
         EMAIL_GEN[Compose Permission Request]
+        VERIFIED{Has Verified Contact?}
         SEND[Send Permission Email]
     end
 
@@ -49,9 +50,11 @@ flowchart TD
     SEEN --> FILTER
     FILTER --> REWRITE
     REWRITE --> EMAIL_GEN
-    EMAIL_GEN --> SEND
+    EMAIL_GEN --> VERIFIED
+    VERIFIED -->|yes| SEND
+    VERIFIED -->|no| LOG
     SEND --> LOG
-    SEND --> MARK
+    LOG --> MARK
 ```
 
 ## Sequence: from RSS to permission request
@@ -107,7 +110,9 @@ stateDiagram-v2
     [*] --> Discovered
     Discovered --> Skipped: Already seen or older than 48h
     Discovered --> Rewritten
-    Rewritten --> PermissionPending: Email sent, logged as pending_response
+    Rewritten --> PermissionPending: Verified contact - email sent, logged as pending_response
+    Rewritten --> NeedsContact: No published contact - logged as needs_contact, nothing sent
+    NeedsContact --> HandOff
     PermissionPending --> HandOff: Reply or 7-day deadline
     HandOff --> [*]
     Skipped --> [*]
@@ -123,7 +128,7 @@ Built into the exported workflow:
 2. **Freshness and completeness** — articles must be under 48 hours old and have a title and snippet
 3. **Constrained rewrite** — the prompt forbids new facts and impersonation and requires a source line
 4. **Structured output** — JSON response mode; the composer parses `linkedin_post` and `facts_preserved`
-5. **Consent before sharing** — the only outbound action is the permission email
+5. **Consent before sharing** — the only outbound action is the permission email, and only to a contact address the publisher made public
 
 ## Tracking layer
 
@@ -131,11 +136,11 @@ Built into the exported workflow:
 |---|---|
 | **ActiveFeeds** | Feed URLs and `active` flag (input) |
 | **SeenArticles** | URL, title, `discovered_at` |
-| **PermissionRequests** | Request ID, article ID / URL / title / author, inferred author email, subject, body, proposed post, facts preserved, `status: pending_response`, `sent_at`, `response_deadline` |
+| **PermissionRequests** | Request ID, article ID / URL / title / author, published author email (or empty), subject, proposed post, `status: pending_response` or `needs_contact`, `requested_at`, `response_deadline` |
 
 ## Performance characteristics
 
 - **Cadence:** every 6 hours, 48-hour freshness window
 - **Per-article cost:** ~$0.05-0.10 in GPT-4o spend; ~30 seconds per rewrite
-- **Outbound actions:** one permission email per new article; nothing is published automatically
+- **Outbound actions:** at most one permission email per new article, only to a published contact address; nothing is published automatically
 - **Details and limits:** see [PERFORMANCE.md](PERFORMANCE.md)

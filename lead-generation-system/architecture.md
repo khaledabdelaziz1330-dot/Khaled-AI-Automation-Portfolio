@@ -79,7 +79,7 @@ flowchart TD
 - **Output:** Truly new leads, each with a `lead_id` and `lead_status: new`
 
 ### Phase 3 — Email Verification
-- **Tool:** ZeroBounce API (10 s timeout, up to 4 attempts, 2 s apart)
+- **Tool:** ZeroBounce API (10 s timeout, up to 3 attempts, 2 s apart)
 - **Cost:** ~$0.007 per verification
 - **Why critical:** Sending to invalid emails damages sender reputation; one bad campaign can push a domain into spam folders for months
 - **Filter:** Only `valid` or `catch-all` statuses proceed, and free-provider and disposable addresses are excluded
@@ -136,7 +136,7 @@ sequenceDiagram
 | **Three-signal dedup** | Prevents contacting the same business twice within a campaign |
 | **Dedup before verification** | No ZeroBounce credits spent on known leads |
 | **ZeroBounce verification** | Protects sender reputation |
-| **Retry on verification** | ZeroBounce calls retry transient failures (4 attempts, 2 s apart) |
+| **Retry on verification** | ZeroBounce calls retry transient failures (3 attempts, 2 s apart) |
 | **Human approval gate** | No bulk-send incidents from AI mistakes |
 | **Approval deadline** | Every record carries a 48-hour `response_deadline` so stale drafts are identifiable |
 | **Approval audit record** | Draft, personalization signal and IDs persisted per lead |

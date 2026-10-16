@@ -108,7 +108,7 @@ Recent conversation (last 10 turns):
 {{ $('Detect Language & Format History').item.json.history_formatted }}
 ```
 
-Headers: `x-api-key` (from `$env.ANTHROPIC_API_KEY`), `anthropic-version: 2023-06-01`. Node settings: 15 s timeout, retry on failure (3 attempts, 1.5 s apart).
+Headers: `x-api-key` (from `$env.ANTHROPIC_API_KEY`), `anthropic-version: 2023-06-01`. Node settings: 15 s timeout, retry on failure (3 attempts, 2 s apart).
 
 ---
 
