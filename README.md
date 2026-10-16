@@ -8,7 +8,7 @@ AI Engineer at **Quara Holding**, the Riyadh-headquartered group behind Saudi-li
 
 This repository documents **ten AI and automation systems** from my client and employer work before Quara, the **shared error handler** they all report to, and an **automated test suite** that checks the engineering claims below on every push.
 
-[LinkedIn](https://www.linkedin.com/in/khaledabdelaziz-ai) · [Email](mailto:khaledabdelaziz1330@gmail.com)
+[LinkedIn](https://www.linkedin.com/in/khaledabdelaziz-ai) · [Email](mailto:khaledabdelaziz1330@gmail.com) · **Languages:** Arabic (native) · English (fluent)
 
 ---
 
