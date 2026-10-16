@@ -1,0 +1,2 @@
+# Count SQL in the repository language bar (GitHub classes .sql as data by default)
+*.sql linguist-detectable=true
