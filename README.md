@@ -57,7 +57,7 @@ Every visitor message is scored against a staff-editable knowledge base; only th
 
 Specification PDFs arrive by email. The LLM extracts handling instructions ("reuse 40%, dispose 30%") as structured rules, exactly as written. **Every calculation, aggregation and validation runs in deterministic code**, and a QA gate routes low-confidence runs to human review instead of delivering them.
 
-**Core principle:** AI for language, code for math — the "AI hallucinated a number" bug class is designed out.
+**Core principle:** AI for language, code for math — LLM arithmetic errors are avoided because every calculation is deterministic.
 
 [README](./document-automation-system) · [Architecture](./document-automation-system/architecture.md) · [Performance](./document-automation-system/PERFORMANCE.md)
 
