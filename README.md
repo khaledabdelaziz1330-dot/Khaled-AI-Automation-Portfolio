@@ -26,12 +26,78 @@ The public systems below show the same engineering approach on work I can share.
 
 ---
 
+## System gallery
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./clinic-booking-system"><img src="./clinic-booking-system/clinic%20workflow.jpg" alt="Clinic AI Receptionist workflow" width="100%"></a><br>
+      <b><a href="./clinic-booking-system">Clinic AI Receptionist</a></b><br>
+      <sub>90%+ of inquiries handled end to end</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./hostzera-chat-widget"><img src="./hostzera-chat-widget/chat-widget-workflow.png" alt="Hostzera Chat Assistant workflow" width="100%"></a><br>
+      <b><a href="./hostzera-chat-widget">Hostzera Chat Assistant</a></b><br>
+      <sub>~0.5% measured hallucination rate</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./document-automation-system"><img src="./document-automation-system/document-automation-workflow.png" alt="Document Automation workflow" width="100%"></a><br>
+      <b><a href="./document-automation-system">Document Automation</a></b><br>
+      <sub>Zero LLM arithmetic</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./lead-generation-system"><img src="./lead-generation-system/lead-generation-workflow.png" alt="Lead Generation & Outreach workflow" width="100%"></a><br>
+      <b><a href="./lead-generation-system">Lead Generation & Outreach</a></b><br>
+      <sub><2% bounce · 8–12% reply rate</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./x-engagement-system"><img src="./x-engagement-system/x-engagement-workflow.jpg" alt="X Engagement Agent workflow" width="100%"></a><br>
+      <b><a href="./x-engagement-system">X Engagement Agent</a></b><br>
+      <sub>Up to 24 expert replies/day, unattended</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./instagram-engagement-system"><img src="./instagram-engagement-system/instagram-engagement-workflow.jpg" alt="Instagram Engagement Agent workflow" width="100%"></a><br>
+      <b><a href="./instagram-engagement-system">Instagram Engagement Agent</a></b><br>
+      <sub>Full lifecycle, zero manual steps</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./gym-lead-management"><img src="./gym-lead-management/gym%20workflow.jpg" alt="Gym Lead Management workflow" width="100%"></a><br>
+      <b><a href="./gym-lead-management">Gym Lead Management</a></b><br>
+      <sub>1,450 messages → 137 members in 90 days</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./beauty-center-reception-workflow"><img src="./beauty-center-reception-workflow/beauty%20center%20workflow.jpg" alt="Beauty Center Reception workflow" width="100%"></a><br>
+      <b><a href="./beauty-center-reception-workflow">Beauty Center Reception</a></b><br>
+      <sub>86% first-message service match</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <a href="./holistic-wellness-club"><img src="./holistic-wellness-club/screenshots/photo_1_2026-02-20_08-16-52.jpg" alt="Wellness Club (GHL + n8n) workflow" width="100%"></a><br>
+      <b><a href="./holistic-wellness-club">Wellness Club (GHL + n8n)</a></b><br>
+      <sub>GoHighLevel journey + n8n event log</sub>
+    </td>
+    <td width="50%" valign="top">
+      <a href="./marketing-lead-engine"><img src="./marketing-lead-engine/marketing-lead-engine-workflow.png" alt="Marketing Content Pipeline workflow" width="100%"></a><br>
+      <b><a href="./marketing-lead-engine">Marketing Content Pipeline</a></b><br>
+      <sub>Permission-first content drafts</sub>
+    </td>
+  </tr>
+</table>
+
+---
+
 ## Featured systems
 
 ### Clinic AI Receptionist
 **n8n · OpenAI (gpt-4o, gpt-4o-mini) · Google Calendar · Google Sheets · Meta Graph API · Telegram**
 
-![clinic workflow](./clinic-booking-system/clinic%20workflow.jpg)
 
 One webhook receives patient messages from four channels and normalizes them into a single schema. A deterministic gpt-4o-mini classifier routes each message; gpt-4o extracts booking details as JSON; **free slots are computed in code from live Google Calendar data** — the model never decides availability. Replies return through the channel the patient used, in Arabic or English.
 
@@ -42,7 +108,6 @@ One webhook receives patient messages from four channels and normalizes them int
 ### Hostzera — Retrieval-Grounded Chat Assistant
 **n8n · Anthropic Claude · Google Sheets · JavaScript**
 
-![hostzera chat widget](./hostzera-chat-widget/chat-widget-workflow.png)
 
 Every visitor message is scored against a staff-editable knowledge base; only the top five rows reach Claude, which is instructed to answer from that context alone and hand off when it cannot. Knowledge-base retrieval and session history load in parallel and merge before a single model call.
 
@@ -53,7 +118,6 @@ Every visitor message is scored against a staff-editable knowledge base; only th
 ### Document Automation — PDF to Excel
 **n8n · OpenAI (gpt-4o) · JavaScript · Gmail · Google Sheets**
 
-![document automation workflow](./document-automation-system/document-automation-workflow.png)
 
 Specification PDFs arrive by email. The LLM extracts handling instructions ("reuse 40%, dispose 30%") as structured rules, exactly as written. **Every calculation, aggregation and validation runs in deterministic code**, and a QA gate routes low-confidence runs to human review instead of delivering them.
 
@@ -64,7 +128,6 @@ Specification PDFs arrive by email. The LLM extracts handling instructions ("reu
 ### Autonomous X & Instagram Engagement Agents
 **n8n · AWS Bedrock · Apify · Unipile · Google Sheets**
 
-![x engagement workflow](./x-engagement-system/x-engagement-workflow.jpg)
 
 Two agents built for a climate-tech brand. Each runs a scraper pipeline and a commenter pipeline linked by a Sheets queue: candidates pass cheap pre-filters, then an LLM relevance classifier with fail-closed JSON parsing, then hard caps, active-hours gating, randomized pacing and duplicate locks before anything is posted.
 
