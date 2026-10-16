@@ -4,27 +4,25 @@
 
 AI Engineer at **Quara Holding**, the Riyadh-headquartered group behind Saudi-listed **Dar Al Arkan**, London-listed **Dar Global** (US$23 billion development portfolio) and proptech platform **Wasalt**. I design, build and run production AI systems: conversational agents, retrieval-grounded assistants, document intelligence and integration pipelines.
 
-This repository documents **ten AI and automation systems** built for clients across healthcare, web hosting, marketing, construction and fitness, plus the **shared error handler** that every one of them reports to. Work for Quara Holding is confidential and is not included here.
+This repository documents **ten AI and automation systems** from my client and employer work before Quara, plus the **shared error handler** every one of them reports to.
 
 [LinkedIn](https://www.linkedin.com/in/khaledabdelaziz-ai) · [Email](mailto:khaledabdelaziz1330@gmail.com)
 
 ---
 
-## At a glance
+## Current role — AI Engineer, Quara Holding (Jun 2026 – present)
 
-| System | What it does | Headline result | Status |
-|---|---|---|---|
-| [Clinic AI Receptionist](./clinic-booking-system) | Books patients across WhatsApp, Instagram, Messenger, Telegram | **90%+** of inquiries handled end to end · **70%** less front-desk work · no-shows **18% → 6%** | Production |
-| [Hostzera Chat Assistant](./hostzera-chat-widget) | Retrieval-grounded sales & support assistant (Claude) | **~0.5%** hallucination rate on a 200-conversation audit · support tickets **35% → 12%** | Production since Jan 2026 |
-| [Document Automation](./document-automation-system) | Construction spec PDFs → structured Excel | **Zero LLM arithmetic** — code does every calculation · **15–30 s** per PDF | Built for construction document processing |
-| [Lead Generation & Outreach](./lead-generation-system) | Scrape → dedupe → verify → AI draft → human approval | **<2%** bounce rate · **8–12%** reply rate | Marketing-agency campaigns |
-| [X Engagement Agent](./x-engagement-system) | Finds relevant posts, LLM-vets them, posts expert replies | Replaces **~1–2 h/day** of skilled work · up to **24** replies/day | Ran unattended in production |
-| [Instagram Engagement Agent](./instagram-engagement-system) | Off-account discovery, LLM filtering, managed-API commenting | Full lifecycle with **zero manual steps** · self-healing queue | Production |
-| [Gym Lead Management](./gym-lead-management) | Multi-channel lead capture → trial booking → membership | **1,450** inbound messages → **522** trials → **137** members in 90 days | Production (single location) |
-| [Beauty Center Reception](./beauty-center-reception-workflow) | Service matching and specialist booking | **86%** first-message service match · **zero** double bookings | Production |
-| [Wellness Club (GHL + n8n)](./holistic-wellness-club) | GoHighLevel client journey + n8n event log | Bookings, reminders and nurture automated end to end | Built & tested in staging |
-| [Marketing Content Pipeline](./marketing-lead-engine) | RSS → AI rewrite → author permission request | Credited, permission-first LinkedIn drafts with an audit log | Working build |
-| [Shared Error Handler](./shared-error-handler) | Sanitized logging and alerting for every workflow | Secrets and PII redacted before any log or alert | Used by all workflows |
+Multinational real estate, finance and technology group operating in **13 countries**. Work here is confidential, so none of it is published in this repository; the scope below matches my CV.
+
+| | |
+|---|---|
+| **Production systems** | **7+ AI agents and workflows** across Dar Al Arkan, Dar Global and Wasalt, adopted by the sales, marketing and multimedia teams |
+| **Prospect intelligence** | Spearheading Dar Global's AI prospect-intelligence engine for international luxury sales — **5,000+ high-net-worth prospects** enriched, verified and AI-scored into the CRM |
+| **Conversational AI** | Arabic/English agents that qualify leads and handle customer conversations for a branded-luxury portfolio in **9 countries** |
+| **Integration** | CRM, paid media, messaging and internal systems connected for a **1,300+ broker** sales network — **30+ hours of manual work saved per week** |
+| **Governance** | Prompt libraries, no-code agent interfaces and dashboards, monitored for accuracy, reliability and cost |
+
+The public systems below show the same engineering approach on work I can share.
 
 ---
 
@@ -71,6 +69,36 @@ Specification PDFs arrive by email. The LLM extracts handling instructions ("reu
 Two agents built for a climate-tech brand. Each runs a scraper pipeline and a commenter pipeline linked by a Sheets queue: candidates pass cheap pre-filters, then an LLM relevance classifier with fail-closed JSON parsing, then hard caps, active-hours gating, randomized pacing and duplicate locks before anything is posted.
 
 [X agent](./x-engagement-system) · [Instagram agent](./instagram-engagement-system)
+
+---
+
+## All systems
+
+| System | What it does | Headline result | Status |
+|---|---|---|---|
+| [Clinic AI Receptionist](./clinic-booking-system) | Books patients across WhatsApp, Instagram, Messenger, Telegram | **90%+** of inquiries handled end to end · **70%** less front-desk work · no-shows **18% → 6%** | Production |
+| [Hostzera Chat Assistant](./hostzera-chat-widget) | Retrieval-grounded sales & support assistant (Claude) | **~0.5%** hallucination rate on a 200-conversation audit · support tickets **35% → 12%** | Production since Jan 2026 |
+| [Document Automation](./document-automation-system) | Construction spec PDFs → structured Excel | **Zero LLM arithmetic** — code does every calculation · **15–30 s** per PDF | Built for construction document processing |
+| [Lead Generation & Outreach](./lead-generation-system) | Scrape → dedupe → verify → AI draft → human approval | **<2%** bounce rate · **8–12%** reply rate | Marketing-agency campaigns |
+| [X Engagement Agent](./x-engagement-system) | Finds relevant posts, LLM-vets them, posts expert replies | Replaces **~1–2 h/day** of skilled work · up to **24** replies/day | Ran unattended in production |
+| [Instagram Engagement Agent](./instagram-engagement-system) | Off-account discovery, LLM filtering, managed-API commenting | Full lifecycle with **zero manual steps** · self-healing queue | Production |
+| [Gym Lead Management](./gym-lead-management) | Multi-channel lead capture → trial booking → membership | **1,450** inbound messages → **522** trials → **137** members in 90 days | Production (single location) |
+| [Beauty Center Reception](./beauty-center-reception-workflow) | Service matching and specialist booking | **86%** first-message service match · **zero** double bookings | Production |
+| [Wellness Club (GHL + n8n)](./holistic-wellness-club) | GoHighLevel client journey + n8n event log | Bookings, reminders and nurture automated end to end | Built & tested in staging |
+| [Marketing Content Pipeline](./marketing-lead-engine) | RSS → AI rewrite → author permission request | Credited, permission-first LinkedIn drafts with an audit log | Working build |
+| [Shared Error Handler](./shared-error-handler) | Sanitized logging and alerting for every workflow | Secrets and PII redacted before any log or alert | Used by all workflows |
+
+---
+
+## Career & where each system comes from
+
+| Period | Role | Systems in this repository |
+|---|---|---|
+| Jun 2026 – present | **AI Engineer, Quara Holding** | Confidential (see *Current role*) |
+| Jan – Jun 2026 | **AI Automation Engineer, Hostzera** (web hosting, Netherlands) | [Hostzera Chat Assistant](./hostzera-chat-widget) · automation that cut manual data entry by **80%** across HubSpot, Airtable and GoHighLevel |
+| Jul – Dec 2025 | **AI Automation Engineer, OMB** (marketing agency, Netherlands) | [Lead Generation & Outreach](./lead-generation-system) · lead systems processing **150+ leads/month** · AI content workflow that cut production time by **70%** |
+| Jan – Jun 2025 | **Independent — healthcare, fitness & beauty clients** | [Clinic AI Receptionist](./clinic-booking-system) · [Gym Lead Management](./gym-lead-management) · [Beauty Center Reception](./beauty-center-reception-workflow) · [Wellness Club](./holistic-wellness-club) |
+| Client & independent builds | Construction, climate-tech and content | [Document Automation](./document-automation-system) · [X Agent](./x-engagement-system) · [Instagram Agent](./instagram-engagement-system) · [Marketing Content Pipeline](./marketing-lead-engine) |
 
 ---
 
