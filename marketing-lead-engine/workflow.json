@@ -1,9 +1,9 @@
 {
-  "name": "Marketing Content Engine - Permission Based",
+  "name": "Marketing Content Pipeline - Permission Based",
   "nodes": [
     {
       "parameters": {
-        "content": "## Ethical Content Marketing Engine\n\n**Principle:** Permission-based, not theft-based.\n\nAuthor approval REQUIRED before any post publishes. Standard content scrapers republish without asking - this system asks first.\n\n**Flow:**\n1. RSS feed scan every 6 hours\n2. Dedup new articles\n3. AI rewrite as LinkedIn post (preserves facts)\n4. Compose permission email to original author\n5. Wait for response\n6. Parse intent (approve/edit/reject)\n7. Safety checks before publish",
+        "content": "## Marketing Content Pipeline\n\n**Principle:** Permission-based, not theft-based.\n\nThis workflow never publishes. It drafts a post and asks the original author for permission first.\n\n**Flow:**\n1. Every 6 hours, read active feed URLs (ActiveFeeds sheet)\n2. Read each RSS feed\n3. Drop articles already in SeenArticles or older than 48 hours\n4. AI rewrite as a LinkedIn-style draft (GPT-4o, JSON output, facts listed)\n5. Compose a permission email containing the draft\n6. Send via Gmail\n7. Log the request (PermissionRequests, status pending_response, 7-day deadline) and mark the article as seen\n\nAuthor replies and publishing are handled outside this workflow, from the PermissionRequests sheet.",
         "height": 360,
         "width": 400,
         "color": 4
@@ -12,25 +12,44 @@
       "name": "📘 Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-220, 80]
+      "position": [
+        -220,
+        80
+      ]
     },
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "hours", "hoursInterval": 6 }]
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
         }
       },
       "id": "schedule",
       "name": "Every 6 Hours",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [240, 400]
+      "position": [
+        240,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.FEEDS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "ActiveFeeds" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.FEEDS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ActiveFeeds"
+        },
         "lookupColumn": "active",
         "lookupValue": "TRUE",
         "returnAllMatches": true,
@@ -40,10 +59,19 @@
       "name": "Get Active Feed URLs",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [460, 400],
+      "position": [
+        460,
+        400
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Marketing"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -56,13 +84,27 @@
       "name": "Read RSS Feed",
       "type": "n8n-nodes-base.rssFeedRead",
       "typeVersion": 1.1,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SEEN_ARTICLES_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "SeenArticles" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SEEN_ARTICLES_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SeenArticles"
+        },
         "lookupColumn": "url",
         "lookupValue": "={{ $json.link }}",
         "returnAllMatches": false,
@@ -72,10 +114,20 @@
       "name": "Check If Already Seen",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [900, 400],
+      "alwaysOutputData": true,
+      "position": [
+        900,
+        400
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Marketing"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -85,11 +137,18 @@
       "name": "Filter New & Recent",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 400]
+      "position": [
+        1120,
+        400
+      ]
     },
     {
       "parameters": {
-        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
         "messages": {
           "values": [
             {
@@ -102,26 +161,41 @@
             }
           ]
         },
-        "options": { "temperature": 0.7, "responseFormat": "json_object" }
+        "options": {
+          "temperature": 0.7,
+          "responseFormat": "json_object"
+        }
       },
       "id": "ai-rewrite",
       "name": "AI Rewrite",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [1340, 400],
+      "position": [
+        1340,
+        400
+      ],
       "credentials": {
-        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
-      }
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "jsCode": "// Compose permission request email\nconst article = $('Filter New & Recent').item.json;\nconst rewrite = JSON.parse($input.first().json.message.content);\n\n// Best-effort author email (production version uses Hunter.io API)\nfunction extractDomain(url) {\n  try { return new URL(url).hostname.replace('www.', ''); }\n  catch { return 'example.com'; }\n}\n\nconst domain = extractDomain(article.url);\nconst authorFirstName = (article.author || 'there').split(' ')[0];\nconst likelyEmail = article.author !== 'Unknown'\n  ? `${article.author.toLowerCase().replace(/\\s+/g, '.')}@${domain}`\n  : `editor@${domain}`;\n\nconst subject = `Permission to share your article on LinkedIn — \"${article.title.slice(0, 50)}...\"`;\n\nconst body = `Hi ${authorFirstName},\\n\\nI read your article \"${article.title}\" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.\\n\\nI always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.\\n\\nWould you be comfortable with me posting this? Here is the draft:\\n\\n----\\n${rewrite.linkedin_post}\\n----\\n\\nIf yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.\\n\\nThanks for the great work,\\n[Your name]\\n\\n[This permission request was sent via an automated content engine that requires author consent before publishing.]`;\n\nreturn [{\n  json: {\n    permission_request_id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    article_id: article.article_id,\n    article_url: article.url,\n    article_title: article.title,\n    article_author: article.author,\n    author_email: likelyEmail,\n    subject,\n    body,\n    proposed_post: rewrite.linkedin_post,\n    facts_preserved: rewrite.facts_preserved,\n    status: 'pending_response',\n    sent_at: new Date().toISOString(),\n    response_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),\n  },\n}];"
+        "jsCode": "// Compose permission request email\nconst article = $('Filter New & Recent').item.json;\nconst rewrite = JSON.parse($input.first().json.message.content);\n\n// Best-effort author email inference: firstname.lastname@domain, or editor@domain when the author is unknown\nfunction extractDomain(url) {\n  try { return new URL(url).hostname.replace('www.', ''); }\n  catch { return 'example.com'; }\n}\n\nconst domain = extractDomain(article.url);\nconst authorFirstName = (article.author || 'there').split(' ')[0];\nconst likelyEmail = article.author !== 'Unknown'\n  ? `${article.author.toLowerCase().replace(/\\s+/g, '.')}@${domain}`\n  : `editor@${domain}`;\n\nconst subject = `Permission to share your article on LinkedIn — \"${article.title.slice(0, 50)}...\"`;\n\nconst body = `Hi ${authorFirstName},\\n\\nI read your article \"${article.title}\" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.\\n\\nI always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.\\n\\nWould you be comfortable with me posting this? Here is the draft:\\n\\n----\\n${rewrite.linkedin_post}\\n----\\n\\nIf yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.\\n\\nThanks for the great work,\\n[Your name]\\n\\n[This permission request was sent via an automated content pipeline that requires author consent before publishing.]`;\n\nreturn [{\n  json: {\n    permission_request_id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n    article_id: article.article_id,\n    article_url: article.url,\n    article_title: article.title,\n    article_author: article.author,\n    author_email: likelyEmail,\n    subject,\n    body,\n    proposed_post: rewrite.linkedin_post,\n    facts_preserved: rewrite.facts_preserved,\n    status: 'pending_response',\n    sent_at: new Date().toISOString(),\n    response_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),\n  },\n}];"
       },
       "id": "code-compose",
       "name": "Compose Permission Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1560, 400]
+      "position": [
+        1560,
+        400
+      ]
     },
     {
       "parameters": {
@@ -136,32 +210,65 @@
       "name": "Send Permission Email",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [1780, 400],
+      "position": [
+        1780,
+        400
+      ],
       "credentials": {
-        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Outreach" }
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail - Outreach"
+        }
       }
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.REQUESTS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "PermissionRequests" },
-        "columns": { "mappingMode": "autoMapInputData" }
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.REQUESTS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "PermissionRequests"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        }
       },
       "id": "log-request",
       "name": "Log Permission Request",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2000, 320],
+      "position": [
+        2000,
+        320
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Marketing"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.SEEN_ARTICLES_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "SeenArticles" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SEEN_ARTICLES_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SeenArticles"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -175,25 +282,116 @@
       "name": "Mark as Seen",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2000, 480],
+      "position": [
+        2000,
+        480
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Marketing" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Marketing"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "pinData": {},
   "connections": {
-    "Every 6 Hours": { "main": [[{ "node": "Get Active Feed URLs", "type": "main", "index": 0 }]] },
-    "Get Active Feed URLs": { "main": [[{ "node": "Read RSS Feed", "type": "main", "index": 0 }]] },
-    "Read RSS Feed": { "main": [[{ "node": "Check If Already Seen", "type": "main", "index": 0 }]] },
-    "Check If Already Seen": { "main": [[{ "node": "Filter New & Recent", "type": "main", "index": 0 }]] },
-    "Filter New & Recent": { "main": [[{ "node": "AI Rewrite", "type": "main", "index": 0 }]] },
-    "AI Rewrite": { "main": [[{ "node": "Compose Permission Request", "type": "main", "index": 0 }]] },
-    "Compose Permission Request": { "main": [[{ "node": "Send Permission Email", "type": "main", "index": 0 }]] },
-    "Send Permission Email": { "main": [[
-      { "node": "Log Permission Request", "type": "main", "index": 0 },
-      { "node": "Mark as Seen", "type": "main", "index": 0 }
-    ]] }
+    "Every 6 Hours": {
+      "main": [
+        [
+          {
+            "node": "Get Active Feed URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Feed URLs": {
+      "main": [
+        [
+          {
+            "node": "Read RSS Feed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read RSS Feed": {
+      "main": [
+        [
+          {
+            "node": "Check If Already Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Already Seen": {
+      "main": [
+        [
+          {
+            "node": "Filter New & Recent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter New & Recent": {
+      "main": [
+        [
+          {
+            "node": "AI Rewrite",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Rewrite": {
+      "main": [
+        [
+          {
+            "node": "Compose Permission Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Compose Permission Request": {
+      "main": [
+        [
+          {
+            "node": "Send Permission Email",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Permission Email": {
+      "main": [
+        [
+          {
+            "node": "Log Permission Request",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Mark as Seen",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
   "settings": {
@@ -204,8 +402,13 @@
   "versionId": "v2.0.1-marketing-engine",
   "id": "marketing-engine-v2",
   "tags": [
-    { "name": "content-marketing", "id": "tag-content" },
-    { "name": "permission-based", "id": "tag-ethical" },
-    { "name": "production", "id": "tag-production" }
+    {
+      "name": "content-marketing",
+      "id": "tag-content"
+    },
+    {
+      "name": "permission-based",
+      "id": "tag-ethical"
+    }
   ]
 }

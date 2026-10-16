@@ -1,92 +1,61 @@
 # Performance Characteristics — Wellness Club GHL + n8n System
 
-Production metrics from a wellness club running the full ecosystem.
+The system was built and tested in a GoHighLevel staging sub-account (February 2026) and has not yet run with live clients, so this page reports no production metrics. It documents the performance-relevant design, the expected running cost, and the known limits.
 
 ---
 
-## Webhook Processing
+## Webhook Processing Path
 
-| Stage | Typical | P95 |
+Every GHL event follows one short, linear path in [`workflow.json`](workflow.json):
+
+| Stage | Work done | Dominant cost |
 |---|---|---|
-| GHL webhook receive → normalized | 100 ms | 250 ms |
-| Idempotency check (Sheets lookup) | 200 ms | 600 ms |
-| Event logging | 300 ms | 800 ms |
-| Reminder scheduling (when applicable) | 50 ms | 150 ms |
+| Receive + normalize | Map GHL payload to one schema | In-memory JavaScript |
+| Duplicate check | One Google Sheets lookup on `event_id` | Sheets API round trip |
+| Enrich + route | Derived fields, switch on `event_type` | In-memory JavaScript |
+| Log | One Sheets append (two for new appointments: log + reminder schedule) | Sheets API round trip |
+| Acknowledge | JSON response to GHL | — |
 
-**End-to-end webhook handling:** Under 1 second average.
-
----
-
-## Volume
-
-- **GHL webhooks received per day:** 50-200 (events across the full client journey)
-- **Bookings tracked per day:** 15-40
-- **Reminders scheduled per day:** 30-80 (most have both 24h and 2h)
-- **Errors per day:** <1 average
+**Implication:** end-to-end latency is bounded by two to three Google Sheets API calls per event; the JavaScript steps are negligible by comparison.
 
 ---
 
-## Operational Outcomes
+## Reliability Mechanisms
 
-The wellness club's actual metrics over 90 days:
+What the exported workflow implements:
 
-| Metric | Before automation | After |
-|---|---|---|
-| Manual front-desk hours per week | 40 | 12 |
-| Booking confirmation latency | 4-8 hours | <5 min |
-| 24-hour reminder send rate | 60% (manual) | 100% (automated) |
-| No-show rate | 22% | 8% |
-| Review request response rate | 8% | 24% |
-| Re-engagement (no-show → re-booked) | 5% | 18% |
+- **Idempotency by event ID** — GHL retries are looked up in the AllEvents index and acknowledged without a second log row
+- **No silent drops** — the router's fallback branch sends every unrecognized event type to Pipeline_Changes
+- **Explicit acknowledgement** — a Respond to Webhook node returns a JSON status to GHL
+- **Safe reminder scheduling** — 24-hr and 2-hr touchpoints already in the past are skipped; appointments without an end time default to one hour
+- **Workflow-level error handler** — failures route to a separate error workflow (Errors sheet + email alert)
+
+On the GHL side, the Appointment Confirmation workflow carries its own monitoring branch for SMS delivery errors and invalid numbers.
 
 ---
 
-## Cost
+## Estimated Running Cost
 
 | Component | Monthly cost |
 |---|---|
 | GoHighLevel subscription | $97-297 (depends on tier) |
-| n8n self-hosted VPS | $20 |
-| Google Workspace | Free tier |
-| WhatsApp Business API | $30-80 (volume-based) |
-| **Total** | **~$150-400/month** |
-
-Compare to: $2,500/month for a part-time front-desk person who works 8 hours, 5 days a week.
+| n8n self-hosted VPS | ~$20 |
+| Google Sheets | Free tier |
+| GHL SMS / email | Usage-based |
+| **Total** | **~$120-320/month plus messaging usage** |
 
 ---
 
-## Reliability
+## Reporting
 
-- **Uptime:** 99.7% over 6 months
-- **GHL webhook duplicates handled correctly:** 100% (idempotency layer)
-- **Reminders sent on schedule:** 99.4%
-- **Errors caught and reported:** 100% (error trigger on every workflow)
-
----
-
-## What the dashboard shows the owners
-
-KPI sheet auto-updates daily with:
-
-```
-Today's leads:        5    (vs yesterday: 3)
-Today's bookings:     8    (vs yesterday: 6)
-Today's no-shows:     1    (vs avg: 1.2)
-Avg time to booking: 4 hrs (vs avg: 5 hrs)
-Active funnel:
-  - New Lead:       12
-  - Hot:            8
-  - Booked:         24
-  - Members:        N/A
-Weekly trend: UP 12% vs last week
-```
-
-Owners check this once a day, run the business. The automation runs the operations.
+The KPIs tab is built from summary formulas and pivot tables over the log tabs. To keep those formulas simple, the workflow writes derived fields at ingest time: `day_of_week`, `hour_of_day`, `is_business_hours`, `funnel_position`, and `week_iso`.
 
 ---
 
 ## Where this hits limits
 
-- **Beyond 500 active members:** Sheet-based reporting starts to lag. Migrate KPIs to Metabase or similar.
-- **Multi-location chains:** Current setup is single-location. Multi-location would need a routing layer above GHL.
-- **HIPAA/GDPR strict mode:** Wellness clubs are usually exempt, but if operating in a regulated jurisdiction, conversation storage needs upgrade.
+- **Idempotency index:** every first-seen event is appended to the AllEvents tab by **Record Event ID**, so a GHL retry of the same event is caught by the lookup. Two copies of one event arriving within the same second can both pass the lookup before either is recorded — acceptable at this volume; a database unique constraint would close that window.
+- **Events without an ID:** if a GHL payload has no `id`, a random `event_id` is generated, so a retry of that payload cannot be detected as a duplicate.
+- **Sheets as a datastore:** at higher volume, Google Sheets API quotas and sheet size will limit throughput and reporting. Migrate logs to a database and KPIs to Metabase or similar.
+- **Multi-location chains:** the current setup is single-location. Multi-location would need a routing layer above GHL.
+- **Regulated jurisdictions:** if client data falls under HIPAA/GDPR-style rules, conversation storage and log retention need review.

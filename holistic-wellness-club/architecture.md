@@ -1,6 +1,8 @@
 # Architecture — Holistic Wellness Club (GHL + n8n)
 
-Dual-system architecture: **GoHighLevel handles the client journey, n8n handles the backend brain.** This separation lets each tool do what it does best.
+Two-layer architecture: **GoHighLevel handles the client journey, n8n handles backend logging and reliability.** The separation lets each tool do what it does best.
+
+Status: built and tested in a GHL staging sub-account (February 2026); GHL workflows are in Draft.
 
 ---
 
@@ -9,184 +11,169 @@ Dual-system architecture: **GoHighLevel handles the client journey, n8n handles 
 ```mermaid
 flowchart TD
     subgraph Client [Client-Facing Layer]
-        WEB[Website]
-        WA[WhatsApp]
-        EMAIL[Email]
+        WEB[Website + Booking Widget]
+        FORM[Lead Forms]
+        MSG[Messenger Chat]
     end
-    
+
     subgraph GHL [GoHighLevel - Journey Orchestration]
+        AI[Conversation AI]
         PIPE1[Leads Pipeline]
         PIPE2[Bookings Pipeline]
         WF1[Automated Workflows]
         CAL[Calendar Booking]
-        SMS[SMS / WhatsApp Sender]
+        SMS[Email / SMS Sender]
     end
-    
-    subgraph n8n [n8n - Backend Brain]
-        WH[Webhook Receiver]
-        NORM[Event Normalizer]
-        IDEM[Idempotency Layer]
-        LOG[Event Logger]
-        KPI[KPI Generator]
-        ERR[Error Handler]
+
+    subgraph n8n [n8n - Backend Logging]
+        WH[GHL Webhook]
+        NORM[Normalize Event]
+        IDEM[Duplicate Check + Enrich]
+        ROUTE[Route by Event Type]
+        REM[Build + Queue Reminders]
+        RESP[Webhook Response]
+        ERR[Error Workflow]
     end
-    
-    subgraph Data [Data Layer]
-        SHEETS[Google Sheets]
-        S1[(Bookings Log)]
-        S2[(Snapshots)]
-        S3[(KPIs)]
-        S4[(Errors)]
+
+    subgraph Data [Data Layer - Google Sheets]
+        S0[(AllEvents)]
+        S1[(Bookings_Log)]
+        S2[(Leads_Log)]
+        S3[(Pipeline_Changes)]
+        S4[(ScheduledMessages)]
+        S5[(Errors)]
     end
-    
-    WEB --> PIPE1
-    WA --> PIPE1
-    EMAIL --> PIPE1
+
+    WEB --> CAL
+    FORM --> PIPE1
+    MSG --> AI
+    AI --> CAL
+    CAL --> WF1
     PIPE1 --> WF1
-    WF1 --> CAL
+    WF1 --> PIPE2
     WF1 --> SMS
-    CAL --> PIPE2
-    PIPE2 --> WF1
-    
-    PIPE1 -.webhook.-> WH
-    PIPE2 -.webhook.-> WH
-    CAL -.webhook.-> WH
-    WF1 -.webhook.-> WH
-    
+
+    WF1 -.webhook action.-> WH
+
     WH --> NORM
     NORM --> IDEM
-    IDEM --> LOG
-    LOG --> KPI
-    LOG --> SHEETS
-    KPI --> S3
-    LOG --> S1
-    LOG --> S2
-    ERR --> S4
+    S0 -.lookup.-> IDEM
+    IDEM --> ROUTE
+    ROUTE --> S1
+    ROUTE --> S2
+    ROUTE --> S3
+    ROUTE --> REM
+    REM --> S4
+    ROUTE --> RESP
+    ERR --> S5
 ```
 
-## Why dual system?
+## Why two layers?
 
-| Need | GHL | n8n |
+| Need | Owned by | Reason |
 |---|---|---|
-| Client-facing workflows | ⭐⭐⭐⭐⭐ | ⭐⭐⭐ |
-| Visual pipeline editor | ⭐⭐⭐⭐⭐ | ⭐⭐⭐⭐ |
-| Custom code/logic | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Multi-API integration | ⭐⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Error monitoring | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Detailed event logging | ⭐⭐ | ⭐⭐⭐⭐⭐ |
-| Custom KPI generation | ⭐⭐ | ⭐⭐⭐⭐⭐ |
+| Client-facing journeys | GHL | Visual builder, native email/SMS, calendars, forms |
+| Pipeline management | GHL | Operators work in a familiar CRM view |
+| Custom code/logic | n8n | Full JavaScript in Code nodes |
+| Multi-API integration | n8n | Any HTTP/API target, not limited to GHL actions |
+| Error monitoring | n8n | Workflow-level error handler with alerting |
+| Detailed event logging | n8n | Normalized, de-duplicated, append-only log |
 
-**Pattern:** Use GHL for what it does well (client journeys, simple workflows), use n8n for what it does well (custom logic, observability, integration glue).
+**Pattern:** use GHL for what it does well (client journeys, simple workflows) and n8n for what it does well (custom logic, observability, integration glue).
 
 ## GoHighLevel layer
 
 ### Pipelines
 
-**Pipeline 1: Leads**
+**Pipeline 1: Wellness Club – Leads**
 ```mermaid
 flowchart LR
-    A[New Lead] --> B[Contacted]
-    B --> C[Hot]
-    C --> D[Booking Confirmed]
-    D --> E[Attended]
-    E --> F[Re-engaged]
-    C --> G[Cold]
+    A[New Lead] -->|Replied| B[Hot Lead]
+    A -->|No reply| C[Cold Lead]
+    C --> D[Cold Lead Nurture]
 ```
 
-**Pipeline 2: Bookings**
+**Pipeline 2: Holistic Services – Bookings**
 ```mermaid
 flowchart LR
-    A[Booking Created] --> B[Confirmed]
-    B --> C[Reminded 24h]
-    C --> D[Reminded 2h]
-    D --> E[Attended]
-    E --> F[Review Requested]
-    D --> G[No-show]
-    G --> H[Recovery Sequence]
+    A[Appointment confirmed] --> B[Attended / feedback sent]
+    B --> C[Review Request]
+    A --> D[No-shows]
+    D --> E[No-Show Nurture]
+    A --> F[Cancelled]
 ```
 
 ### Automated workflows in GHL
-- Confirmation message on booking creation
-- 24-hour SMS reminder
-- 2-hour WhatsApp reminder
-- Post-visit review request
-- No-show recovery sequence (3 messages over 7 days)
-- Re-engagement campaign for cold leads
+- **Appointment Confirmation + Reminders** — confirmation email, 24-hour reminder email, 2-hour reminder email + SMS; monitoring branch for SMS errors and invalid numbers
+- **New Lead Nurture** — email + SMS after one day, two-day reply window, intent branching on replies
+- **Cold Lead Nurture** — re-engagement for leads who never booked
+- **No-Show Nurture** — recovery sequence for missed appointments
+- **Send Review Request** — SMS then email, 2 days after an attended visit
+- **Cancelled Appointment** — cancellation handling
+
+GHL Conversation AI answers service questions on Messenger and points prospects to the booking widget.
 
 ## n8n layer
 
-### Three core workflows
+### Event Logger & Reminder Scheduler (`workflow.json`)
 
-#### 1. Booking Event Logger
-- Receives webhooks from GHL bookings pipeline
-- Normalizes event schema
-- Deduplicates via idempotency check
-- Appends to Bookings Log sheet
-- Creates daily snapshots in Bookings Snapshot sheet
+One webhook receives all GHL events:
 
-#### 2. Lead Event Logger
-- Receives webhooks from GHL leads pipeline
-- Tracks every status change
-- Calculates funnel position
-- Computes time-to-conversion metrics
+1. **GHL Webhook** — `POST /ghl-event`, responds through a Respond to Webhook node
+2. **Normalize Event** — maps GHL event types to `lead.*`, `opportunity.*`, `appointment.*` and builds a single contact / opportunity / appointment schema, keeping a 1,000-character raw-payload excerpt for debugging
+3. **Check Duplicates** — Google Sheets lookup of `event_id` in AllEvents
+4. **Enrich & Idempotency** — flags duplicates; adds `day_of_week`, `hour_of_day`, `is_business_hours`, `funnel_position`, `week_iso`
+5. **Not Duplicate?** — duplicates go straight to the webhook response
+6. **Route by Event Type** — `appointment.created`, `lead.created`, `opportunity.status_changed`, plus a fallback output
+7. **Log Appointment / Log Lead / Log Pipeline Change** — append to Bookings_Log, Leads_Log, Pipeline_Changes
+8. **Build Reminders → Queue Reminders** — 24-hr, 2-hr, and post-visit touchpoints appended to ScheduledMessages
 
-#### 3. Error Trigger
-- Catches any failure in any n8n workflow
-- Sanitizes sensitive data
-- Logs to Errors sheet
-- Sends Slack alert to team
+The build-environment canvas in `screenshots/photo_7` shows the earlier version of this layer: separate appointment and lead webhook branches plus an error trigger. `workflow.json` consolidates them behind one webhook with idempotency and routing.
 
-### KPI generation
+### Error workflow
 
-Daily snapshots compute:
-- New leads (today vs yesterday)
-- Bookings created
-- Attendance rate
-- No-show rate
-- Average time from lead to booking
-- Funnel conversion rates
-- Channel performance breakdown
+Set through the workflow's Error Workflow setting (not included in this export). It catches any failed execution, logs it to the Errors sheet, and emails the team.
 
-These flow into a single Google Sheets KPI dashboard accessible by the wellness club owners.
+### Reporting
+
+The KPIs tab uses summary formulas and pivot tables over the log tabs. Derived fields written at ingest keep those formulas simple.
 
 ## Data layer (Google Sheets)
 
-| Sheet | Purpose | Update frequency |
+| Sheet | Purpose | Written by |
 |---|---|---|
-| **Bookings_Log** | Every booking event with full context | Real-time on webhook |
-| **Bookings_Snapshot** | Daily aggregated booking metrics | Daily at midnight |
-| **Leads_Log** | Every lead status change | Real-time on webhook |
-| **Errors** | Any system failure with sanitized context | Real-time on error |
-| **KPIs** | Daily KPI dashboard for stakeholders | Daily at 6 AM |
+| **AllEvents** | Event-ID index for duplicate detection | Appended by **Record Event ID** when an event is first seen |
+| **Bookings_Log** | One row per new appointment | Log Appointment |
+| **Leads_Log** | One row per new lead | Log Lead |
+| **Pipeline_Changes** | Stage changes and all other event types | Log Pipeline Change |
+| **ScheduledMessages** | Planned 24-hr / 2-hr / post-visit touchpoints | Queue Reminders |
+| **Errors** | Failed executions with context | Error workflow |
+| **KPIs** | Reporting for stakeholders | Sheet formulas |
 
 ## Idempotency strategy
 
-GHL retries webhooks on failure. Without idempotency, this creates duplicate log entries.
+GHL retries webhooks on failure. Without idempotency, retries create duplicate log rows.
 
 **Implementation:**
-1. Check incoming event_id against recent events (last 24h)
-2. Also check (contact_id + event_type + timestamp window) for retries with different IDs
-3. If duplicate detected, log as `_idempotency: duplicate_skipped` and exit gracefully
+1. Look up the incoming `event_id` in AllEvents
+2. If it matches, mark the event `_skip_reason: duplicate_event` and acknowledge it without logging
+3. Otherwise record the `event_id` in AllEvents (**Record Event ID**), then enrich, route, and log
+
+**Known gap:** payloads without an `id` receive a generated ID, so retries of those payloads are not caught.
 
 ## Error handling
 
 ```mermaid
 flowchart LR
-    A[Any node fails] --> B[Error Trigger]
-    B --> C[Sanitize sensitive data]
-    C --> D{Severity}
-    D -->|High| E[Immediate Slack alert]
-    D -->|Medium| F[Batch alert hourly]
-    D -->|Low| G[Daily digest]
-    E --> H[Log to Errors sheet]
-    F --> H
-    G --> H
+    A[Any node fails] --> B[Error Workflow]
+    B --> C[Log to Errors sheet]
+    B --> D[Email the team]
+    E[GHL SMS error / invalid number] --> F[GHL internal notification]
 ```
 
 ## Performance characteristics
 
-- **Webhook processing:** <500ms average
-- **KPI snapshot generation:** ~5 seconds for full daily aggregation
-- **Reliability:** 99.7% uptime over 6 months
-- **Manual front-desk work reduced:** ~70%
-- **Single source of truth:** Yes — all data flows through Sheets
+- **Per-event cost:** two to three Google Sheets API calls; JavaScript steps are negligible
+- **Duplicate handling:** retries with a known `event_id` are acknowledged, not re-logged
+- **Coverage:** the fallback route ensures every event type is logged
+- **Production metrics:** none yet; see [PERFORMANCE.md](PERFORMANCE.md)

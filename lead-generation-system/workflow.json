@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Lead Generation Engine\n\n**6-phase pipeline:** Scrape → Dedup → Verify → Personalize → Approve → Send\n\n**Critical principle:** Human approval is MANDATORY. No email sends without explicit operator approval via Telegram.\n\n**Stack:** Apify + ZeroBounce + OpenAI + Telegram + Gmail + Sheets",
+        "content": "## Lead Generation Engine\n\n**Pipeline (this export):** Scrape → Dedup → Verify → Personalize → Telegram approval request → Approval queue\n\n**Critical principle:** Human approval is MANDATORY. Every draft is held in the PendingApprovals queue until an operator acts on it via Telegram. Approval handling and sending are not part of this workflow.\n\n**Stack:** Apify + ZeroBounce + OpenAI + Telegram + Google Sheets",
         "height": 280,
         "width": 400,
         "color": 6
@@ -12,25 +12,44 @@
       "name": "📘 Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-220, 80]
+      "position": [
+        -220,
+        80
+      ]
     },
     {
       "parameters": {
         "rule": {
-          "interval": [{ "field": "cronExpression", "expression": "0 9 * * 1" }]
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 9 * * 1"
+            }
+          ]
         }
       },
       "id": "schedule",
       "name": "Weekly Monday 9AM",
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
-      "position": [240, 400]
+      "position": [
+        240,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CAMPAIGNS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "ActiveCampaigns" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.CAMPAIGNS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ActiveCampaigns"
+        },
         "lookupColumn": "status",
         "lookupValue": "active",
         "returnAllMatches": true,
@@ -40,10 +59,19 @@
       "name": "Get Active Campaigns",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [460, 400],
+      "position": [
+        460,
+        400
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Outreach" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Outreach"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -54,32 +82,54 @@
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"searchStringsArray\": [\"{{ $json.search_query }}\"],\n  \"locationQuery\": \"{{ $json.location }}\",\n  \"maxCrawledPlacesPerSearch\": {{ $json.max_results || 100 }},\n  \"language\": \"en\",\n  \"exportPlaceUrls\": false,\n  \"includeWebResults\": false\n}",
-        "options": { "timeout": 300000 }
+        "options": {
+          "timeout": 300000
+        }
       },
       "id": "apify-scrape",
       "name": "Apify Google Maps Scrape",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [680, 400],
+      "position": [
+        680,
+        400
+      ],
       "credentials": {
-        "httpHeaderAuth": { "id": "REPLACE_APIFY_CREDENTIAL_ID", "name": "Apify API" }
-      }
+        "httpHeaderAuth": {
+          "id": "REPLACE_APIFY_CREDENTIAL_ID",
+          "name": "Apify API"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "jsCode": "// Extract relevant fields from Apify results\nconst items = $input.first().json;\nconst campaign = $('Get Active Campaigns').first().json;\n\nreturn items\n  .filter(item => item.emails && item.emails.length > 0)\n  .map(item => ({\n    json: {\n      campaign_id: campaign.campaign_id,\n      business_name: item.title,\n      email: item.emails[0],\n      phone: item.phone || '',\n      website: item.website || '',\n      address: item.address || '',\n      city: item.city || '',\n      country: item.countryCode || '',\n      category: item.categoryName || '',\n      rating: item.totalScore || null,\n      reviews_count: item.reviewsCount || 0,\n      scraped_at: new Date().toISOString(),\n    },\n  }));"
+        "jsCode": "// Extract relevant fields from Apify results\n// Apify may return one item per business or one item holding an array — handle both\nconst items = $input.all().flatMap(i => Array.isArray(i.json) ? i.json : [i.json]);\nconst campaign = $('Get Active Campaigns').first().json;\n\nreturn items\n  .filter(item => item.emails && item.emails.length > 0)\n  .map(item => ({\n    json: {\n      campaign_id: campaign.campaign_id,\n      business_name: item.title,\n      email: item.emails[0],\n      phone: item.phone || '',\n      website: item.website || '',\n      address: item.address || '',\n      city: item.city || '',\n      country: item.countryCode || '',\n      category: item.categoryName || '',\n      rating: item.totalScore || null,\n      reviews_count: item.reviewsCount || 0,\n      scraped_at: new Date().toISOString(),\n    },\n  }));"
       },
       "id": "code-extract",
       "name": "Extract Lead Fields",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 400]
+      "position": [
+        900,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEADS_DB_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "AllLeads" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.LEADS_DB_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "AllLeads"
+        },
         "lookupColumn": "campaign_id",
         "lookupValue": "={{ $('Get Active Campaigns').first().json.campaign_id }}",
         "returnAllMatches": true,
@@ -89,35 +139,54 @@
       "name": "Get Existing Leads",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1120, 280],
+      "position": [
+        1120,
+        280
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Outreach" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Outreach"
+        }
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
-        "jsCode": "// Multi-signal deduplication: email, phone, domain\nconst newLeads = $input.all().map(i => i.json);\nconst existingLeads = $('Get Existing Leads').all().map(i => i.json);\n\nconst existingEmails = new Set(existingLeads.map(l => (l.email || '').toLowerCase().trim()).filter(Boolean));\nconst existingPhones = new Set(existingLeads.map(l => String(l.phone || '').replace(/\\D/g, '')).filter(Boolean));\nconst existingDomains = new Set(existingLeads.map(l => extractDomain(l.website)).filter(Boolean));\n\nfunction extractDomain(url) {\n  if (!url) return null;\n  try {\n    return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace('www.', '');\n  } catch { return null; }\n}\n\nconst stats = { input: newLeads.length, duplicates: 0, new_leads: 0 };\nconst uniqueLeads = [];\n\nfor (const lead of newLeads) {\n  const email = (lead.email || '').toLowerCase().trim();\n  const phone = String(lead.phone || '').replace(/\\D/g, '');\n  const domain = extractDomain(lead.website);\n  \n  const isDup = (email && existingEmails.has(email)) ||\n                (phone && existingPhones.has(phone)) ||\n                (domain && existingDomains.has(domain));\n  \n  if (isDup) {\n    stats.duplicates++;\n  } else {\n    uniqueLeads.push({\n      ...lead,\n      lead_id: `lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n      lead_status: 'new',\n    });\n    stats.new_leads++;\n    if (email) existingEmails.add(email);\n    if (phone) existingPhones.add(phone);\n    if (domain) existingDomains.add(domain);\n  }\n}\n\nconsole.log('Dedup stats:', stats);\nreturn uniqueLeads.map(l => ({ json: l }));"
+        "jsCode": "// Multi-signal deduplication: email, phone, domain\nconst newLeads = $('Extract Lead Fields').all().map(i => i.json);\nconst existingLeads = $('Get Existing Leads').all().map(i => i.json);\n\nconst existingEmails = new Set(existingLeads.map(l => (l.email || '').toLowerCase().trim()).filter(Boolean));\nconst existingPhones = new Set(existingLeads.map(l => String(l.phone || '').replace(/\\D/g, '')).filter(Boolean));\nconst existingDomains = new Set(existingLeads.map(l => extractDomain(l.website)).filter(Boolean));\n\nfunction extractDomain(url) {\n  if (!url) return null;\n  try {\n    return new URL(url.startsWith('http') ? url : `https://${url}`).hostname.replace('www.', '');\n  } catch { return null; }\n}\n\nconst stats = { input: newLeads.length, duplicates: 0, new_leads: 0 };\nconst uniqueLeads = [];\n\nfor (const lead of newLeads) {\n  const email = (lead.email || '').toLowerCase().trim();\n  const phone = String(lead.phone || '').replace(/\\D/g, '');\n  const domain = extractDomain(lead.website);\n  \n  const isDup = (email && existingEmails.has(email)) ||\n                (phone && existingPhones.has(phone)) ||\n                (domain && existingDomains.has(domain));\n  \n  if (isDup) {\n    stats.duplicates++;\n  } else {\n    uniqueLeads.push({\n      ...lead,\n      lead_id: `lead_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,\n      lead_status: 'new',\n    });\n    stats.new_leads++;\n    if (email) existingEmails.add(email);\n    if (phone) existingPhones.add(phone);\n    if (domain) existingDomains.add(domain);\n  }\n}\n\nconsole.log('Dedup stats:', stats);\nreturn uniqueLeads.map(l => ({ json: l }));"
       },
       "id": "code-dedup",
       "name": "Deduplicate",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 400]
+      "position": [
+        1340,
+        400
+      ]
     },
     {
       "parameters": {
         "method": "GET",
         "url": "=https://api.zerobounce.net/v2/validate?api_key={{ $env.ZEROBOUNCE_API_KEY }}&email={{ encodeURIComponent($json.email) }}",
         "options": {
-          "retry": { "maxRetries": 3, "waitBetweenRetries": 2000 },
           "timeout": 10000
         }
       },
+      "retryOnFail": true,
+      "maxTries": 4,
+      "waitBetweenTries": 2000,
       "id": "zerobounce",
       "name": "ZeroBounce Verify",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1560, 400]
+      "position": [
+        1560,
+        400
+      ]
     },
     {
       "parameters": {
@@ -127,17 +196,26 @@
       "name": "Filter Verified",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1780, 400]
+      "position": [
+        1780,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.should_send }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -147,11 +225,18 @@
       "name": "Is Verified?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [2000, 400]
+      "position": [
+        2000,
+        400
+      ]
     },
     {
       "parameters": {
-        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
         "messages": {
           "values": [
             {
@@ -173,10 +258,19 @@
       "name": "AI Personalization",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [2220, 320],
+      "position": [
+        2220,
+        320
+      ],
       "credentials": {
-        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
-      }
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -186,7 +280,10 @@
       "name": "Build Approval Record",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2440, 320]
+      "position": [
+        2440,
+        320
+      ]
     },
     {
       "parameters": {
@@ -201,47 +298,181 @@
       "name": "Send Telegram Approval",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
-      "position": [2660, 320],
+      "position": [
+        2660,
+        320
+      ],
       "credentials": {
-        "telegramApi": { "id": "REPLACE_TELEGRAM_CREDENTIAL_ID", "name": "Telegram Bot" }
+        "telegramApi": {
+          "id": "REPLACE_TELEGRAM_CREDENTIAL_ID",
+          "name": "Telegram Bot"
+        }
       }
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEADS_DB_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "PendingApprovals" },
-        "columns": { "mappingMode": "autoMapInputData" }
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.LEADS_DB_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "PendingApprovals"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        }
       },
       "id": "sheets-queue",
       "name": "Queue Approval",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2880, 320],
+      "position": [
+        2880,
+        320
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Outreach" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Outreach"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "pinData": {},
   "connections": {
-    "Weekly Monday 9AM": { "main": [[{ "node": "Get Active Campaigns", "type": "main", "index": 0 }]] },
-    "Get Active Campaigns": { "main": [[{ "node": "Apify Google Maps Scrape", "type": "main", "index": 0 }]] },
-    "Apify Google Maps Scrape": { "main": [[{ "node": "Extract Lead Fields", "type": "main", "index": 0 }]] },
-    "Extract Lead Fields": { "main": [[
-      { "node": "Get Existing Leads", "type": "main", "index": 0 },
-      { "node": "Deduplicate", "type": "main", "index": 0 }
-    ]] },
-    "Get Existing Leads": { "main": [[{ "node": "Deduplicate", "type": "main", "index": 0 }]] },
-    "Deduplicate": { "main": [[{ "node": "ZeroBounce Verify", "type": "main", "index": 0 }]] },
-    "ZeroBounce Verify": { "main": [[{ "node": "Filter Verified", "type": "main", "index": 0 }]] },
-    "Filter Verified": { "main": [[{ "node": "Is Verified?", "type": "main", "index": 0 }]] },
-    "Is Verified?": { "main": [[{ "node": "AI Personalization", "type": "main", "index": 0 }]] },
-    "AI Personalization": { "main": [[{ "node": "Build Approval Record", "type": "main", "index": 0 }]] },
-    "Build Approval Record": { "main": [[
-      { "node": "Send Telegram Approval", "type": "main", "index": 0 },
-      { "node": "Queue Approval", "type": "main", "index": 0 }
-    ]] }
+    "Weekly Monday 9AM": {
+      "main": [
+        [
+          {
+            "node": "Get Active Campaigns",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Campaigns": {
+      "main": [
+        [
+          {
+            "node": "Apify Google Maps Scrape",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apify Google Maps Scrape": {
+      "main": [
+        [
+          {
+            "node": "Extract Lead Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Lead Fields": {
+      "main": [
+        [
+          {
+            "node": "Get Existing Leads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Existing Leads": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate": {
+      "main": [
+        [
+          {
+            "node": "ZeroBounce Verify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "ZeroBounce Verify": {
+      "main": [
+        [
+          {
+            "node": "Filter Verified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter Verified": {
+      "main": [
+        [
+          {
+            "node": "Is Verified?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Verified?": {
+      "main": [
+        [
+          {
+            "node": "AI Personalization",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Personalization": {
+      "main": [
+        [
+          {
+            "node": "Build Approval Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Approval Record": {
+      "main": [
+        [
+          {
+            "node": "Send Telegram Approval",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Queue Approval",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
   "settings": {
@@ -252,8 +483,17 @@
   "versionId": "v2.0.1-lead-gen",
   "id": "lead-generation-v2",
   "tags": [
-    { "name": "lead-generation", "id": "tag-leadgen" },
-    { "name": "human-in-loop", "id": "tag-hitl" },
-    { "name": "production", "id": "tag-production" }
+    {
+      "name": "lead-generation",
+      "id": "tag-leadgen"
+    },
+    {
+      "name": "human-in-loop",
+      "id": "tag-hitl"
+    },
+    {
+      "name": "production",
+      "id": "tag-production"
+    }
   ]
 }

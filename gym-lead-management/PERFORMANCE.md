@@ -1,25 +1,30 @@
 # Performance Characteristics — Gym Lead Management System
 
-Production metrics from gyms running this pipeline.
+Production metrics from a single gym location running this pipeline for 90 days.
 
 ---
 
 ## Response Time
 
+Two different things are measured here:
+
+- **End to end** — inbound message received to reply sent to the channel. This is the figure the gym experiences and the one to quote.
+- **In-workflow processing** — the individual stages inside the n8n workflow, which take seconds.
+
 | Stage | Typical | P95 |
 |---|---|---|
-| Inbound message → AI reply sent | 60-90 sec | 3 min |
+| **Inbound message → reply sent (end to end)** | **60–90 sec** | **3 min** |
 | Lead record lookup | 200 ms | 600 ms |
-| AI qualification | 1-2 sec | 5 sec |
+| AI qualification (gpt-4o) | 1–2 sec | 5 sec |
 | Trial booking creation | 500 ms | 1.5 sec |
 
-**User-facing target:** Under 90 seconds. Met 95% of the time.
+**User-facing target:** under 90 seconds end to end. Met 95% of the time.
 
 ---
 
 ## Pipeline Conversion Rates
 
-Real funnel numbers from a gym running this for 90 days:
+Funnel from one gym over 90 days:
 
 | Stage | Count | Conversion |
 |---|---|---|
@@ -30,11 +35,13 @@ Real funnel numbers from a gym running this for 90 days:
 | Member conversions | 137 | 35% of attendees |
 | **End-to-end (inbound → member)** | **137** | **9.4%** |
 
-For 150 leads/month at 9.4% conversion = ~14 new members/month per location.
+That is ~483 inbound messages and ~46 new members per month at one location.
 
 ---
 
 ## No-show Recovery Effectiveness
+
+Produced by the production follow-up agent (not part of the exported `workflow.json`):
 
 | Outcome | Count (90 days) | Percentage |
 |---|---|---|
@@ -44,7 +51,7 @@ For 150 leads/month at 9.4% conversion = ~14 new members/month per location.
 | **Of no-shows: re-engaged successfully** | **26** | **20%** |
 | **Of re-engaged: ultimately attended trial** | **18** | **69%** |
 
-The 3-step recovery sequence recovers ~14% of no-shows back into the funnel. Without it, those leads would be lost entirely.
+The 3-step recovery sequence brings ~14% of no-shows (18 of 130) back to an attended trial. Without it, those leads would be lost.
 
 ---
 
@@ -52,11 +59,11 @@ The 3-step recovery sequence recovers ~14% of no-shows back into the funnel. Wit
 
 | Component | Monthly cost |
 |---|---|
-| OpenAI API (~1,500 messages/month) | $25-50 |
-| WhatsApp Business API | $30-80 |
+| OpenAI API (~1,500 messages/month) | $25–50 |
+| WhatsApp Business API | $30–80 |
 | n8n self-hosted | $20 |
 | Google Workspace | Free tier |
-| **Total** | **~$75-150/month per gym** |
+| **Total** | **~$75–150/month per gym** |
 
 Replaces ~30 hours/week of front-desk message handling.
 
@@ -64,16 +71,16 @@ Replaces ~30 hours/week of front-desk message handling.
 
 ## Reliability
 
-- **Uptime:** 99.5%
-- **Bookings created without conflict:** 100% (capacity check working)
-- **Reminders sent on schedule:** 99.8%
-- **Sequence cancellations on conversion:** 100% (no "still messaging you after you became a member")
+- **Execution success rate:** 99.5%
+- **Trial bookings over capacity:** 0 — the per-slot cap is enforced in code before any booking is written
+- **Reminders sent on schedule:** 99.8% (production follow-up agent)
+- **Follow-up sequences cancelled on conversion:** 100% (production follow-up agent) — no "still messaging you after you became a member"
 
 ---
 
 ## What the gym owner sees
 
-Daily KPI digest at 6 AM:
+Daily KPI digest at 6 AM, generated from the lead sheet by the production deployment:
 
 ```
 Yesterday's inbound:    18 messages
@@ -96,5 +103,6 @@ Pipeline health:
 
 ## Where this hits limits
 
-- **Multi-location franchise:** Current setup is single-location. Multi-gym would need routing logic.
-- **Highly seasonal patterns (Jan rush):** Capacity caps on trial classes can be hit. Calendar slot expansion needed for high-volume periods.
+- **Multi-location franchise:** the current setup is single-location; multi-gym needs branch routing.
+- **Highly seasonal peaks (January rush):** trial class caps fill up; the slot schedule needs expanding for high-volume periods.
+- **No open slot within 7 days:** the export has no waitlist branch — the booking step fails loudly and the shared error handler alerts staff. An explicit no-availability reply is the next improvement.

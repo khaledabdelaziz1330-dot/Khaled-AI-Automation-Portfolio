@@ -1,70 +1,62 @@
 # Document Automation System
 
 AI-assisted document processing pipeline for construction specification instructions
-(PDF Parsing · AI Extraction · Deterministic Calculations · QA Reporting)
+(Gmail Intake · PDF Parsing · AI Extraction · Deterministic Calculations · QA Gate)
 
 ---
 
 ![document automation workflow](document-automation-workflow.png)
 
+*Screenshot: the workflow as originally built in the n8n editor (Drive-based intake, multi-stage layout). The exported [`workflow.json`](workflow.json) is the sanitized reference version of this pipeline, with Gmail intake and a consolidated node layout; this documentation describes `workflow.json`.*
+
 ---
 
 ## What This System Does
 
-An AI-assisted document processing pipeline that automates the transformation of **construction specification instructions** into structured Excel outputs.
+An AI-assisted pipeline that turns **construction specification PDFs** into structured Excel outputs.
 
-The system ingests two inputs:
-1. A **spreadsheet** containing specification items and baseline quantities.
-2. A **PDF document** containing natural-language instructions for each item.
-
-An LLM is used **only** to extract structured action signals (reuse, dispose, clean, package, transport) from the unstructured text. All numerical calculations, aggregation from child items to parent items, and output generation are handled **deterministically in code** to ensure reliability.
+Specification PDFs arrive by email. Each PDF lists items, their quantities and natural-language handling instructions ("reuse 40%, dispose 30%, clean and store 30%"). An LLM is used **only** to extract those instructions as structured rules, with numbers exactly as written. Every calculation, parent/child aggregation, validation and output step runs **deterministically in code**.
 
 ---
 
 ## How It Works
 
-### Phase 1: Intake & Duplicate Check
-1. **Schedule Trigger / Manual Trigger** — starts the workflow
-2. **Search files and folders** — locates new PDF documents to process
-3. **Combine source checks** — cross-references with existing records
-4. **Check duplicates** — prevents reprocessing of already-handled documents
-5. **Register new PDF** — logs the document for processing
-6. **Load existing records** — retrieves baseline data from the reference spreadsheet
+### Phase 1: Intake
+1. **Gmail New PDF** — Gmail trigger polls the inbox every minute for unread messages from an allow-listed set of senders and downloads attachments
+2. **Filter PDFs Only** — keeps PDF attachments, captures sender and subject, and assigns each PDF a `run_id`; emails without a PDF fail fast
 
-### Phase 2: PDF Parsing & Rule Extraction
-1. **Download PDF** — fetches the document
-2. **Extract PDF text** — converts PDF content to machine-readable text
-3. **Split PDF by item** — segments the text by specification item
-4. **AI Extract Processing** — uses an LLM to extract structured action signals from natural-language instructions
-5. **Parse AI output** — converts AI responses into structured data
-6. **Read input sheet + Normalize rows** — loads and standardizes baseline quantities
+### Phase 2: Parsing & Rule Extraction
+1. **Extract PDF Text** — n8n's native Extract From File node converts the PDF to text (pages joined)
+2. **AI Rule Extraction** — OpenAI `gpt-4o` (temperature 0, JSON mode) extracts items, parent items, quantities, units and action percentages (reuse, dispose, clean & store) exactly as stated; unclear values are returned as `null`
 
-### Phase 3: Deterministic Calculation & Output
-1. **Merge** — combines AI-extracted rules with baseline data
-2. **Join data** — links child items to parent items
-3. **Calculate child** — computes quantities for child items
-4. **Aggregate to parents** — rolls up child quantities to parent level
-5. **Validate results** — checks quantity conservation and mathematical consistency
-6. **Build final output** — structures the data for Excel export
-7. **Write output sheet** — generates the final Excel file
-8. **Write QA report** — produces a quality assurance report with validation results
+### Phase 3: Deterministic Calculation & QA
+1. **Calculation Engine (Deterministic)** — computes action quantities from percentages, checks percentage balance and quantity conservation per item, aggregates child items under their parents, and detects duplicate item names
+2. **Generate QA Report** — produces a weighted quality score, a quality label, warnings (imbalance, duplicate, invalid quantity) and recommendations
 
-### Phase 4: Error Handling & Alerts
-- **Error Trigger** catches any failure in the pipeline
-- **Log the error** — records the failure in a dedicated error sheet
-- **Notify the team** — sends an email alert with error details
+### Phase 4: Quality Gate & Delivery
+1. **Quality Gate** — auto-exports only when the score is at least 70% **and** no blocking warnings were raised
+2. **Pass:** **Generate Excel** → **Send Excel Result** emails the spreadsheet and QA summary back to the sender
+3. **Fail:** **Send to Review Queue** emails the score, warnings and recommendations to the review inbox
+4. **Log Processing Run** — both paths append the run to a Google Sheets processing log
+
+Unhandled failures (for example, a PDF with no text layer) go to the portfolio's [shared error handler](../shared-error-handler) through the workflow's `errorWorkflow` setting.
 
 ---
 
 ## Workflow Architecture
 
 ```
-Intake & Duplicate Check (green section)
-  → PDF Parsing & Rule Extraction (blue section)
-    → Deterministic Calculation & Output Writing (blue section)
+Gmail New PDF (trigger)
+  → Filter PDFs Only
+    → Extract PDF Text
+      → AI Rule Extraction (OpenAI gpt-4o, JSON mode)
+        → Calculation Engine (Deterministic)
+          → Generate QA Report
+            → Quality Gate
+              ├── pass → Generate Excel → Send Excel Result (Gmail) → Log Processing Run (Sheets)
+              └── fail → Send to Review Queue (Gmail) → Log Processing Run (Sheets)
 
-Error Handling & Alerts (red section)
-  → Error Trigger → Log error + Notify team via email
+errorWorkflow → shared error handler
 ```
 
 ---
@@ -74,36 +66,39 @@ Error Handling & Alerts (red section)
 | Layer | Tools |
 |---|---|
 | **Orchestration** | n8n (self-hosted on VPS) |
-| **AI** | OpenAI (structured extraction from natural language only) |
-| **Logic** | JavaScript (deterministic calculations, aggregation, validation) |
-| **Data** | Google Sheets (input data, output results, error logs, QA reports) |
-| **Storage** | Google Drive (PDF storage and retrieval) |
-| **Alerts** | Gmail (error notifications to the team) |
+| **Intake** | Gmail trigger (sender allow-list, attachment download) |
+| **AI** | OpenAI `gpt-4o` (structured extraction from natural language only) |
+| **Logic** | JavaScript (deterministic calculations, aggregation, validation, QA scoring) |
+| **Output** | n8n Convert to File (Excel), Gmail (results and review queue) |
+| **Data** | Google Sheets (processing log) |
 
 ---
 
 ## Key Design Decisions
 
-- **AI is used narrowly** — only for extracting action signals from unstructured text. All math and aggregation is deterministic code. This prevents calculation errors from LLM hallucination.
-- **Quantity conservation checks** — the system verifies that input quantities match output quantities after processing.
-- **Duplicate detection** — prevents reprocessing documents that have already been handled.
+- **AI is used narrowly** — only for extracting rules from unstructured text. All arithmetic and aggregation is deterministic code, which removes LLM arithmetic errors as a failure class.
+- **Numbers extracted as written** — the prompt forbids derived values and validation; the model reports, the code decides.
+- **Quantity conservation checks** — every item's computed action quantities are checked against its stated quantity.
+- **Duplicate detection** — repeated item names are flagged as likely parsing errors.
+- **Strict quality gate** — a run auto-exports only when it clears the score threshold with zero blocking warnings; everything else goes to a human.
 - **QA reporting** — every run produces a quality report so results can be audited.
-- **Error isolation** — failures in one step don't crash the entire pipeline; they're logged and the team is notified.
 
 ---
 
 ## Impact
 
-- **Hours of manual document processing** reduced to automated pipeline runs
-- **Zero calculation errors** — deterministic code handles all math, not the LLM
-- **Full audit trail** — every step is logged, every result is validated
-- **QA reports** give confidence that outputs are correct before use
-- **Scalable** — handles increasing document volume without workflow changes
+Measured on 1,200 documents over 90 days (see [PERFORMANCE.md](PERFORMANCE.md)):
+
+- **No LLM-generated arithmetic** — every number in the output is computed in code (100% arithmetic correctness for the extracted inputs)
+- **84% of runs clear the 70% QA threshold**; runs that do not are always routed to human review
+- **15–30 seconds per PDF** end-to-end, at **~$0.03–0.05 per document**
+- **98% processing success rate**
+- ~100 documents/month replaces an estimated 20–30 hours of manual data entry
 
 ---
 
 ## Notes
 
-- This system demonstrates a hybrid AI approach: using LLMs where they excel (understanding natural language) while keeping critical calculations in deterministic code
-- The separation between AI extraction and mathematical processing is intentional and ensures reliability in a domain where numerical accuracy matters
-- Built with production-grade error handling, retry logic, and team notifications
+- This system demonstrates a hybrid AI approach: LLMs where they excel (understanding natural language), deterministic code where numerical accuracy matters
+- The separation between AI extraction and mathematical processing is intentional and enforced at a structured JSON boundary
+- Accuracy limits sit in extraction, not arithmetic: item names 96%, quantities 97%, percentage rules 94%, parent-child relationships 88%

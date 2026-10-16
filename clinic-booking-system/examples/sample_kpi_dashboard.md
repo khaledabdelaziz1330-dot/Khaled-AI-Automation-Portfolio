@@ -2,6 +2,8 @@
 
 The Google Sheets dashboard the clinic owner sees. Auto-refreshes daily at 6 AM. Sanitized snapshot from a real deployment.
 
+Inquiry, response-time and AI-cost figures come from the conversation workflow in [`workflow.json`](../workflow.json). Booking, reminder and follow-up counts come from production components outside the export (see [Scope of this export](../README.md#scope-of-this-export)).
+
 ---
 
 ## Daily Snapshot — Monday, April 22, 2026
@@ -14,7 +16,7 @@ The Google Sheets dashboard the clinic owner sees. Auto-refreshes daily at 6 AM.
 | Bookings created | 12 | 9 | +33% |
 | Bookings attended | 11 | 10 | +10% |
 | No-shows | 1 | 0 | +1 |
-| Avg response time | 1.2 sec | 1.4 sec | -14% |
+| Avg processing time (webhook → reply sent) | 1.2 sec | 1.4 sec | -14% |
 | Total AI cost today | $0.34 | $0.27 | +26% |
 
 ---
@@ -91,7 +93,7 @@ Post-visit follow-ups due: 5
 
 ```
 🟡 04:23 AM — OpenAI rate limit briefly hit, auto-recovered
-🟡 09:17 AM — One WhatsApp message delayed 90 seconds (queue spike)
+🟡 09:17 AM — One WhatsApp reply delayed 90 seconds (send retried during traffic spike)
 ─────────────────────────────
 No critical alerts.
 ```
@@ -113,6 +115,8 @@ Projected month-end:    ~$48
 Budget:                 $75
 Status:                 ✓ Under budget
 ```
+
+WhatsApp Business is billed per conversation by Meta at market- and category-specific rates, which is why it is the largest line here and runs above the per-conversation averages in [`PERFORMANCE.md`](../PERFORMANCE.md).
 
 ---
 

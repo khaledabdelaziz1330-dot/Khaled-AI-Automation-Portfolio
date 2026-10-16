@@ -34,15 +34,14 @@ $env.CALENDAR_ID
 $env.SLACK_ERROR_CHANNEL
 ```
 
-### 2. Sanitization in error handlers
+### 2. Sanitization in the shared error handler
 
-Every workflow's error handler sanitizes payloads before logging:
-```javascript
-function sanitize(obj) {
-  const sensitive = ['api_key', 'authorization', 'password', 'token', 'secret', 'bearer'];
-  // Recursively replace any matching field with [REDACTED]
-}
-```
+Every workflow routes failures to the [shared error handler](./shared-error-handler), which sanitizes payloads before anything is logged or alerted:
+- Fields named like `api_key`, `authorization`, `bearer`, `password`, `secret`, `token`, `cookie` or `session` are replaced with `[REDACTED]`
+- Bearer tokens, API keys, email addresses and phone numbers inside free text are masked
+- Oversized payloads are truncated before storage
+
+The sanitizer is tested against a synthetic failure containing all four secret/PII types.
 
 PII in conversation logs (phone numbers, emails) is hashed or truncated when forwarded outside the immediate processing flow.
 
@@ -73,7 +72,25 @@ OAuth scopes requested for credentials match the workflow's actual needs:
 When data leaves the immediate n8n + Google Workspace boundary:
 - **OpenAI / Anthropic:** Sent only what's needed for the immediate response. Conversation history is summarized rather than streamed in full for long sessions.
 - **ZeroBounce:** Email addresses only, no other PII
-- **Apify:** Public business data scraped from Google Maps, no PII
+- **Apify:** Public business listings (Google Maps) and public social posts (X, Instagram) — no private data
+
+---
+
+## Data protection by design (Saudi PDPL, GDPR)
+
+These systems process personal data of patients, members, prospects and customers, so they are designed around the core obligations shared by Saudi Arabia's Personal Data Protection Law (PDPL) and the EU/UK GDPR:
+
+| Principle | How it shows up in these systems |
+|---|---|
+| **Consent and lawful outreach** | Receptionist and booking agents reply only to people who messaged first; B2B outreach uses public business contact details, verified addresses, and a human approval gate on every email |
+| **Data minimisation** | LLM prompts receive only the fields needed for the task — never full CRM records or credentials |
+| **Purpose limitation** | Each workflow writes to its own sheets; data collected for booking is not reused for marketing |
+| **Retention limits** | Conversation logs ~90 days, error logs 30 days (see above) |
+| **Cross-border transfers** | Sending personal data to AI providers hosted abroad requires a data processing agreement and, under PDPL, approved transfer safeguards — flagged as a deployment prerequisite |
+| **Data-subject rights** | Records are keyed by contact ID so a person's data can be located, exported or deleted on request |
+| **Auditability** | Every failure is logged by the shared error handler; human approvals are recorded with timestamps |
+
+Compliance is ultimately a property of the deployment and the data controller's policies, not of a workflow file — these patterns are designed to make that compliance achievable, and legal review is part of every production rollout.
 
 ---
 
@@ -83,7 +100,7 @@ I document these honestly because pretending a system is perfect is itself a sec
 
 1. **n8n self-hosted instances must be secured** — VPS hardening, firewall, regular updates are the operator's responsibility. The workflow JSON doesn't protect a poorly-configured server.
 
-2. **Google Sheets is not a secure data store for highly sensitive PII** — for clinics handling health records, additional encryption-at-rest or migration to HIPAA-compliant storage is required.
+2. **Google Sheets is not a secure data store for highly sensitive PII** — for clinics handling health records, additional encryption-at-rest or migration to a database that meets the relevant health-data rules (e.g. HIPAA in the US, PDPL health-data provisions in Saudi Arabia) is required.
 
 3. **Webhook endpoints are public by design** — security comes from signature validation and rate limiting, not obscurity.
 

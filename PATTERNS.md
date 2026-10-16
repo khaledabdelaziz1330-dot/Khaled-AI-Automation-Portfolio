@@ -2,7 +2,7 @@
 
 The patterns documented here appear across every system in this portfolio. Each one represents a deliberate design decision that has cost me time when I skipped it and saved me time when I applied it consistently.
 
-This document exists because a portfolio of 8 systems is interesting; a set of consistently-applied patterns across those 8 systems demonstrates engineering discipline.
+A portfolio of ten systems is interesting; the same patterns applied consistently across all ten is what demonstrates engineering discipline.
 
 ---
 
@@ -65,11 +65,11 @@ User message → AI extracts structured data → Code validates and computes →
 
 ---
 
-## 3. Error Triggers on Every Critical Node
+## 3. No Silent Failures — One Shared Error Handler
 
-**Where it appears:** All projects. Connected as `errorWorkflow` in workflow settings.
+**Where it appears:** Every workflow sets `settings.errorWorkflow` to the [shared error handler](./shared-error-handler).
 
-**The rule:** A failure in any node sends a sanitized alert within 30 seconds. Silent failures are the #1 cause of broken production automation.
+**The rule:** Any execution that fails is sanitized, logged and — if it is customer-facing — escalated to a human. Silent failures are the #1 cause of broken production automation.
 
 **Why this matters:**
 - API rate limits happen at 3 AM
@@ -77,15 +77,14 @@ User message → AI extracts structured data → Code validates and computes →
 - A WhatsApp account gets disconnected
 - Without monitoring: leads stop coming, nobody notices for 10 days, client asks "why are we getting fewer leads?"
 
-**Implementation pattern:**
+**Implementation pattern** ([`shared-error-handler/workflow.json`](./shared-error-handler/workflow.json)):
 
-1. Error Trigger node catches any failure in any workflow
-2. Sanitizer scrubs API keys, tokens, PII before logging
-3. Severity classifier (high/medium/low) based on error patterns
-4. Slack alert with structured context (workflow, node, error, execution ID)
-5. Errors sheet for historical analysis
+1. **Error Trigger** fires on any failed execution of any workflow that points to it
+2. **Sanitize & Classify** redacts keys, tokens and PII and assigns severity (high / medium / low)
+3. **Log Error** appends one row per failure to the `Errors` sheet — the audit trail
+4. **High-severity failures** (outbound messaging, booking, 401/403) post a Slack alert with workflow, node, sanitized message and execution link
 
-**Real example:** `clinic-booking-system/code_examples.md` Section 5.
+The sanitizer is tested against a synthetic failure containing a bearer token, an API key, an email address and a phone number — all four are masked.
 
 ---
 
@@ -154,13 +153,13 @@ function sanitize(obj) {
 }
 ```
 
-**Real example:** `clinic-booking-system/code_examples.md` Section 5.
+**Real example:** [`shared-error-handler`](./shared-error-handler) — key-based and pattern-based redaction, tested on synthetic secrets and PII.
 
 ---
 
 ## 7. Documentation as Deliverable
 
-**Where it appears:** Every project has README + architecture.md + code_examples.md + workflow.json.
+**Where it appears:** Eight projects ship README + architecture.md + PERFORMANCE.md + code_examples.md + workflow.json; the X and Instagram agents ship README + workflow diagram.
 
 **The rule:** If a non-technical operator can't understand what the system does without me explaining it, the project isn't finished. Documentation is part of the deliverable, not an afterthought.
 
@@ -190,9 +189,10 @@ function sanitize(obj) {
 
 **Implementation patterns:**
 - Input validation in the first node after every webhook
-- `retry: { maxRetries: 3, waitBetweenRetries: 2000 }` on every HTTP node calling an external API
-- `timeout: 10000` (or appropriate) on every long-running call
-- Fallback paths when primary providers fail (Claude fails → try OpenAI)
+- `"retryOnFail": true, "maxTries": 3, "waitBetweenTries": 2000` on every external **read and AI call** (Sheets lookups, Calendar reads, LLM requests, scrapers)
+- **No automatic retry on non-idempotent actions** — outbound messages, emails and calendar bookings. A retry after a request that actually succeeded would message a customer twice or double-book a slot, so these failures go straight to the error handler instead
+- Explicit timeouts on long-running calls
+- Parallel branches are joined with a **Merge** node before a single downstream call, so one input never triggers two LLM requests
 
 ---
 

@@ -2,6 +2,8 @@
 
 Real conversation patterns from the clinic AI receptionist. Patient identities and clinic-specific details are anonymized; conversation structure and AI behavior are representative of actual production traffic.
 
+These come from the production deployment, which extends the exported [`workflow.json`](../workflow.json) with booking write-back, reminders and staff escalation (see [Scope of this export](../README.md#scope-of-this-export)).
+
 ---
 
 ## Example 1 — Standard booking flow (English, WhatsApp)
@@ -114,14 +116,14 @@ Real conversation patterns from the clinic AI receptionist. Patient identities a
 > Great question — let me connect you with our team for the most accurate answer on insurance acceptance. I'll flag your message to the office now, and someone will reply within an hour during business hours.
 
 **14:09** — System
-> [Conversation flagged for human follow-up. Slack alert sent to clinic team.]
+> [Conversation flagged for human follow-up by the clinic team.]
 
 **14:42** — Clinic team member
 > Hi John! Yes, we accept Allianz. Just bring your insurance card when you come in. Want me to book you a cleaning or consultation?
 
 **Notes on this conversation:**
 - AI did NOT make up an answer about insurance (a hallucination risk)
-- Cleanly escalated to human within seconds
+- Escalated to staff within seconds
 - Team responded within the 1-hour SLA
 - This is the "I don't know" pattern in action
 
@@ -133,4 +135,4 @@ Real conversation patterns from the clinic AI receptionist. Patient identities a
 2. **Language matches the patient** — Arabic dialect when patient writes in Arabic dialect, English when in English, mixed when mixed
 3. **Urgent cases escalate immediately** — emergency, pain, complications never go through normal booking flow
 4. **Confirmation messages are structured** — patients can re-read them clearly
-5. **Cost per conversation is low** — typical $0.003-0.014, fitting within the $50-90/month cost target for ~5,000-15,000 conversations/month
+5. **Cost per conversation is low** — $0.003–0.014 in these examples; [`PERFORMANCE.md`](../PERFORMANCE.md) reports a ~$0.008–0.020 average per conversation, or ~$36–90/month at 150 conversations/day

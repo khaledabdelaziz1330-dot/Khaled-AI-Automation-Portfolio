@@ -1,164 +1,139 @@
-# Code Examples — Marketing Content Engine
+# Code Examples — Marketing Content Pipeline
 
-Production code from the permission-based content marketing pipeline. RSS monitoring → AI rewriting → author permission → conditional publishing.
+Code and configuration taken directly from [`workflow.json`](workflow.json). RSS monitoring → deduplication → AI rewriting → author permission request → logging.
 
 ---
 
-## 1. RSS Feed Aggregator with Deduplication
+## 1. New & Recent Article Filter
 
-Monitors multiple RSS feeds, deduplicates articles across them.
+Runs after **Check If Already Seen** (a SeenArticles lookup per article URL). Keeps only unseen articles from the last 48 hours that have a title and snippet, and shapes them for the rewrite step.
 
 ```javascript
-// n8n Code Node — RSS Aggregation & Dedup
+// n8n Code Node — Filter New & Recent
 
-const allFeeds = $('Read All RSS Feeds').all();
-const seenArticles = $('Get Seen Articles').all();
+// Filter to only new + recent articles
+const articles = $('Read RSS Feed').all();
+const seenLookup = $input.all();
 
-const seenUrls = new Set(seenArticles.map((s) => s.json.url));
-const seenTitles = new Set(seenArticles.map((s) => normalizeTitle(s.json.title)));
+const seenUrls = new Set(seenLookup.map(s => s.json.url));
 
-function normalizeTitle(title) {
-  return title.toLowerCase().replace(/[^\w\s]/g, '').trim();
-}
+const MAX_AGE_HOURS = 48;
+const now = Date.now();
 
-const newArticles = [];
-
-for (const feed of allFeeds) {
-  for (const item of feed.json.items || []) {
-    const url = item.link || item.url;
-    const title = item.title || '';
-    const normalizedTitle = normalizeTitle(title);
-    
-    if (seenUrls.has(url) || seenTitles.has(normalizedTitle)) continue;
-    if (!isRecent(item.pubDate, 48)) continue; // Only last 48 hours
-    
-    newArticles.push({
-      url,
-      title,
-      author: item.creator || item.author || extractAuthorFromContent(item),
-      content_snippet: item.contentSnippet || item.content?.slice(0, 500),
-      pub_date: item.pubDate || new Date().toISOString(),
-      source_feed: feed.json.feedUrl,
-      discovered_at: new Date().toISOString(),
-    });
-    
-    seenUrls.add(url);
-    seenTitles.add(normalizedTitle);
-  }
-}
-
-function isRecent(pubDate, hours) {
+function isRecent(pubDate) {
   if (!pubDate) return false;
-  const age = (Date.now() - new Date(pubDate).getTime()) / (1000 * 60 * 60);
-  return age < hours;
+  const age = (now - new Date(pubDate).getTime()) / (1000 * 60 * 60);
+  return age < MAX_AGE_HOURS;
 }
 
-function extractAuthorFromContent(item) {
-  // Some feeds embed author info in content
-  const byline = item.content?.match(/by\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})/);
+const newArticles = articles
+  .map(a => a.json)
+  .filter(article => {
+    if (seenUrls.has(article.link)) return false;
+    if (!isRecent(article.pubDate || article.isoDate)) return false;
+    if (!article.title || !article.contentSnippet) return false;
+    return true;
+  })
+  .map(article => ({
+    article_id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    url: article.link,
+    title: article.title,
+    author: article.creator || article.author || extractAuthor(article.content),
+    content_snippet: (article.contentSnippet || article.content || '').slice(0, 2000),
+    pub_date: article.pubDate || article.isoDate || new Date().toISOString(),
+    discovered_at: new Date().toISOString(),
+  }));
+
+function extractAuthor(content) {
+  if (!content) return 'Unknown';
+  const byline = content.match(/by\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})/);
   return byline ? byline[1] : 'Unknown';
 }
 
-return newArticles.map((a) => ({ json: a }));
+return newArticles.map(a => ({ json: a }));
 ```
 
 ---
 
 ## 2. AI Content Rewriter
 
-Rewrites articles into LinkedIn-style posts. Maintains original facts, changes structure.
+An OpenAI node (model `gpt-4o`, temperature `0.7`, response format `json_object`). Rewrites the article into a LinkedIn-style post while preserving the original facts.
 
-```javascript
-// n8n OpenAI Node — Content Rewriter
+**System prompt:**
 
-const article = $input.first().json;
-
-const systemPrompt = `You rewrite published articles into LinkedIn-style posts.
+```text
+You rewrite published articles into LinkedIn-style posts.
 
 Rules:
 - Maximum 300 words
-- Lead with a strong hook (first 2 lines must work alone)
-- Preserve all factual claims and numbers from the original
-- Adapt the structure for LinkedIn (short paragraphs, line breaks)
-- Add a "Source" line at the end: "Original article by [author]: [url]"
+- Lead with a strong hook (first 2 lines must work alone before 'see more')
+- Preserve ALL factual claims and numbers from the original
+- Adapt structure for LinkedIn (short paragraphs, line breaks)
+- Add a Source line at the end: 'Original article by [author]: [url]'
 - Do NOT pretend to be the original author
 - Do NOT add facts not in the original
-- Match the tone of professional thought leadership
+- Match tone of professional thought leadership
 
-Output as JSON:
+Output JSON only:
 {
   "linkedin_post": "...",
-  "estimated_reading_time_seconds": <number>,
-  "facts_preserved": [<list of key facts from original>],
+  "facts_preserved": ["...", "..."],
   "rewrite_notes": "any deviations from straight rewrite"
-}`;
+}
+```
 
-return [{
-  json: {
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: `Original article:\nTitle: ${article.title}\nAuthor: ${article.author}\nURL: ${article.url}\n\nContent:\n${article.content_snippet}` },
-    ],
-    temperature: 0.7,
-    response_format: { type: 'json_object' },
-  },
-}];
+**User message (n8n expression):**
+
+```text
+Title: {{ $json.title }}
+Author: {{ $json.author }}
+URL: {{ $json.url }}
+
+Content:
+{{ $json.content_snippet }}
 ```
 
 ---
 
 ## 3. Permission Request Composer
 
-Composes a professional email asking the original author for permission to share the rewrite.
+Builds the permission email with the full draft attached, and the record that is logged to PermissionRequests.
 
 ```javascript
-// n8n Code Node — Permission Request Builder
+// n8n Code Node — Compose Permission Request
 
-const article = $('Original Article').first().json;
-const rewrite = JSON.parse($('AI Rewrite').first().json.message.content);
+// Compose permission request email
+const article = $('Filter New & Recent').item.json;
+const rewrite = JSON.parse($input.first().json.message.content);
 
-// Try to find author email (would normally use a service like Hunter.io)
-const authorEmail = article.author_email || `${article.author.toLowerCase().replace(/\s/g, '.')}@${extractDomain(article.url)}`;
-
+// Best-effort author email inference: firstname.lastname@domain, or editor@domain when the author is unknown
 function extractDomain(url) {
-  try {
-    return new URL(url).hostname.replace('www.', '');
-  } catch {
-    return 'example.com';
-  }
+  try { return new URL(url).hostname.replace('www.', ''); }
+  catch { return 'example.com'; }
 }
 
-const emailSubject = `Permission to share your article on LinkedIn — "${article.title.slice(0, 50)}..."`;
+const domain = extractDomain(article.url);
+const authorFirstName = (article.author || 'there').split(' ')[0];
+const likelyEmail = article.author !== 'Unknown'
+  ? `${article.author.toLowerCase().replace(/\s+/g, '.')}@${domain}`
+  : `editor@${domain}`;
 
-const emailBody = `Hi ${article.author.split(' ')[0]},
+const subject = `Permission to share your article on LinkedIn — "${article.title.slice(0, 50)}..."`;
 
-I read your article "${article.title}" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.
-
-I always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.
-
-Would you be comfortable with me posting this? Here is the draft:
-
-----
-${rewrite.linkedin_post}
-----
-
-If yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.
-
-Thanks for the great work,
-[Your name]
-
-[This permission request was sent via an automated content engine that requires author consent before publishing.]`;
+const body = `Hi ${authorFirstName},\n\nI read your article "${article.title}" and found it valuable enough that I'd like to share a summary with my LinkedIn audience.\n\nI always ask for permission before sharing someone's work. The summary I've drafted preserves your key points, gives you full credit, and links back to your original article.\n\nWould you be comfortable with me posting this? Here is the draft:\n\n----\n${rewrite.linkedin_post}\n----\n\nIf yes, I'll post it on LinkedIn this week with credit to you. If you'd prefer I not share it — or if you'd like me to edit anything — just let me know.\n\nThanks for the great work,\n[Your name]\n\n[This permission request was sent via an automated content pipeline that requires author consent before publishing.]`;
 
 return [{
   json: {
-    permission_request_id: crypto.randomUUID(),
-    article_id: article.url,
-    author: article.author,
-    author_email: authorEmail,
-    subject: emailSubject,
-    body: emailBody,
+    permission_request_id: `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    article_id: article.article_id,
+    article_url: article.url,
+    article_title: article.title,
+    article_author: article.author,
+    author_email: likelyEmail,
+    subject,
+    body,
     proposed_post: rewrite.linkedin_post,
+    facts_preserved: rewrite.facts_preserved,
     status: 'pending_response',
     sent_at: new Date().toISOString(),
     response_deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -166,115 +141,28 @@ return [{
 }];
 ```
 
----
-
-## 4. Response Parser (Approval Detection)
-
-When the author replies, parses their response to detect approval/rejection.
-
-```javascript
-// n8n Code Node — Response Parser
-
-const reply = $input.first().json;
-const replyText = (reply.body || '').toLowerCase();
-
-// Pattern-based detection
-const approvalPatterns = [
-  /\b(yes|approved|go ahead|sure|absolutely|fine by me|please do|happy to)\b/,
-  /\b(thanks|thank you).*\b(for asking|for the credit)/,
-];
-
-const rejectionPatterns = [
-  /\b(no|not interested|please don\'t|prefer not|rather not|not at this time)\b/,
-  /\b(would prefer|please do not)\b/,
-];
-
-const editRequestPatterns = [
-  /\b(could you|would you|please|can you).*\b(change|adjust|modify|edit|update)\b/,
-  /\b(one thing|small change|minor edit)\b/,
-];
-
-function detectIntent(text) {
-  const isApproval = approvalPatterns.some((p) => p.test(text));
-  const isRejection = rejectionPatterns.some((p) => p.test(text));
-  const isEditRequest = editRequestPatterns.some((p) => p.test(text));
-  
-  if (isRejection) return 'rejected';
-  if (isEditRequest) return 'edit_requested';
-  if (isApproval) return 'approved';
-  return 'unclear';
-}
-
-const intent = detectIntent(replyText);
-
-return [{
-  json: {
-    permission_request_id: reply.in_reply_to_id,
-    author_response: reply.body,
-    response_received_at: reply.date,
-    detected_intent: intent,
-    requires_human_review: intent === 'unclear' || intent === 'edit_requested',
-    can_auto_publish: intent === 'approved',
-  },
-}];
-```
+**Send Permission Email** (Gmail) sends `subject` and `body` to `author_email`. **Log Permission Request** appends the whole record to PermissionRequests.
 
 ---
 
-## 5. LinkedIn Auto-Publisher (with safeguards)
+## 4. Dedup Memory
 
-Only publishes if explicit approval received.
+**Mark as Seen** appends one row per processed article to SeenArticles, which the next cycle's lookup reads:
 
-```javascript
-// n8n Code Node — Publish Decision
-
-const request = $('Approval Status').first().json;
-
-// Multiple safety checks before publishing
-const safetyChecks = {
-  has_approval_record: !!request.permission_request_id,
-  status_is_approved: request.detected_intent === 'approved',
-  not_already_published: !request.published_at,
-  no_human_review_flag: !request.requires_human_review,
-  within_freshness_window: isWithinFreshness(request.original_article_date),
-};
-
-const allChecksPass = Object.values(safetyChecks).every(Boolean);
-
-if (!allChecksPass) {
-  return [{
-    json: {
-      action: 'skip',
-      reason: 'safety_check_failed',
-      failed_checks: Object.entries(safetyChecks).filter(([_, v]) => !v).map(([k]) => k),
-    },
-  }];
+```json
+{
+  "url": "={{ $('Filter New & Recent').item.json.url }}",
+  "title": "={{ $('Filter New & Recent').item.json.title }}",
+  "discovered_at": "={{ $now.toISO() }}"
 }
-
-function isWithinFreshness(articleDate, maxDays = 30) {
-  if (!articleDate) return false;
-  const age = (Date.now() - new Date(articleDate).getTime()) / (1000 * 60 * 60 * 24);
-  return age <= maxDays;
-}
-
-return [{
-  json: {
-    action: 'publish',
-    linkedin_post: request.proposed_post,
-    author_credit: request.author,
-    original_url: request.article_url,
-    permission_record_id: request.permission_request_id,
-    safety_checks_passed: safetyChecks,
-  },
-}];
 ```
 
 ---
 
 ## Design principles demonstrated
 
-1. **Permission-based, not theft-based** — ethical foundation
-2. **Multiple safety checks before publishing** — prevent embarrassing publishes
-3. **Intent detection from natural language responses** — handles real human replies
-4. **Freshness windows** — don't post stale content
-5. **Pattern-based parsing first, AI second** — cheap and reliable
+1. **Permission-based, not theft-based** — the only outbound action is a consent request
+2. **Dedup before spend** — URL lookup runs before any AI call
+3. **Constrained generation** — prompt rules plus JSON output mode, with facts listed for review
+4. **Freshness windows** — only articles from the last 48 hours are considered
+5. **Auditable by default** — every request is logged with its draft, status, and deadline

@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Hostzera AI Chat Widget\n\n**Core principle:** Retrieval-grounded. AI never answers from training data, only from Google Sheets knowledge base.\n\n**Stack:** n8n + Claude + OpenAI (fallback) + Google Sheets\n\n**Flow:**\n1. Widget POST → webhook\n2. Get session history + knowledge base\n3. Score & retrieve relevant KB rows\n4. Detect language\n5. AI response grounded ONLY in retrieved context\n6. Enrich response with product links\n7. Log conversation, return to widget",
+        "content": "## Hostzera AI Chat Widget\n\n**Core principle:** Retrieval-grounded. AI never answers from training data, only from Google Sheets knowledge base.\n\n**Stack:** n8n + Anthropic Claude (Messages API via HTTP Request) + Google Sheets\n\n**Flow:**\n1. Widget POST → webhook\n2. Get session history + knowledge base\n3. Score & retrieve relevant KB rows\n4. Detect language\n5. AI response grounded ONLY in retrieved context\n6. Enrich response with product links\n7. Log conversation, return to widget",
         "height": 400,
         "width": 400,
         "color": 5
@@ -12,7 +12,10 @@
       "name": "📘 Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-220, 80]
+      "position": [
+        -220,
+        80
+      ]
     },
     {
       "parameters": {
@@ -23,8 +26,14 @@
           "rawBody": false,
           "responseHeaders": {
             "entries": [
-              { "name": "Content-Type", "value": "application/json" },
-              { "name": "Access-Control-Allow-Origin", "value": "={{ $env.HOSTZERA_DOMAIN }}" }
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "={{ $env.HOSTZERA_DOMAIN }}"
+              }
             ]
           }
         }
@@ -33,24 +42,38 @@
       "name": "Chat Widget Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 400],
+      "position": [
+        240,
+        400
+      ],
       "webhookId": "hostzera-chat-webhook"
     },
     {
       "parameters": {
-        "jsCode": "// Validate incoming payload from chat widget\nconst body = $input.first().json.body;\n\nif (!body.message || typeof body.message !== 'string') {\n  throw new Error('Missing or invalid message field');\n}\nif (!body.session_id) {\n  throw new Error('Missing session_id');\n}\n\n// Rate limiting check via session_id (simple counter in Sheets)\nconst MAX_MESSAGE_LENGTH = 1000;\nif (body.message.length > MAX_MESSAGE_LENGTH) {\n  throw new Error(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);\n}\n\nreturn [{\n  json: {\n    session_id: body.session_id,\n    message: body.message.trim(),\n    visitor_ip: $input.first().json.headers['x-forwarded-for'] || 'unknown',\n    user_agent: $input.first().json.headers['user-agent'] || 'unknown',\n    received_at: new Date().toISOString(),\n  },\n}];"
+        "jsCode": "// Validate incoming payload from chat widget\nconst body = $input.first().json.body;\n\nif (!body.message || typeof body.message !== 'string') {\n  throw new Error('Missing or invalid message field');\n}\nif (!body.session_id) {\n  throw new Error('Missing session_id');\n}\n\n// Input guard: cap message length before it reaches the LLM\nconst MAX_MESSAGE_LENGTH = 1000;\nif (body.message.length > MAX_MESSAGE_LENGTH) {\n  throw new Error(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);\n}\n\nreturn [{\n  json: {\n    session_id: body.session_id,\n    message: body.message.trim(),\n    visitor_ip: $input.first().json.headers['x-forwarded-for'] || 'unknown',\n    user_agent: $input.first().json.headers['user-agent'] || 'unknown',\n    received_at: new Date().toISOString(),\n  },\n}];"
       },
       "id": "code-validate",
       "name": "Validate Request",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 400]
+      "position": [
+        460,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.KB_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "KnowledgeBase" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.KB_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "KnowledgeBase"
+        },
         "lookupColumn": "active",
         "lookupValue": "TRUE",
         "returnAllMatches": true,
@@ -60,16 +83,33 @@
       "name": "Get Knowledge Base",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 240],
+      "position": [
+        680,
+        240
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Hostzera"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CONVERSATIONS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.CONVERSATIONS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Conversations"
+        },
         "lookupColumn": "session_id",
         "lookupValue": "={{ $('Validate Request').item.json.session_id }}",
         "returnAllMatches": true,
@@ -79,10 +119,19 @@
       "name": "Get Session History",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 560],
+      "position": [
+        680,
+        560
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Hostzera"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -92,7 +141,10 @@
       "name": "KB Retrieval & Scoring",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 240]
+      "position": [
+        900,
+        240
+      ]
     },
     {
       "parameters": {
@@ -102,7 +154,10 @@
       "name": "Detect Language & Format History",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 560]
+      "position": [
+        900,
+        560
+      ]
     },
     {
       "parameters": {
@@ -111,24 +166,38 @@
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "x-api-key", "value": "={{ $env.ANTHROPIC_API_KEY }}" },
-            { "name": "anthropic-version", "value": "2023-06-01" },
-            { "name": "content-type", "value": "application/json" }
+            {
+              "name": "x-api-key",
+              "value": "={{ $env.ANTHROPIC_API_KEY }}"
+            },
+            {
+              "name": "anthropic-version",
+              "value": "2023-06-01"
+            },
+            {
+              "name": "content-type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={\n  \"model\": \"claude-3-5-sonnet-20241022\",\n  \"max_tokens\": 800,\n  \"temperature\": 0.3,\n  \"system\": \"You are Hostzera's AI sales and support assistant.\\n\\nCRITICAL RULES:\\n1. Answer ONLY using the information in the Retrieved Context below.\\n2. If the user asks something not covered by the context, respond with: 'Great question — let me connect you with our team for an accurate answer.'\\n3. Never invent prices, plans, features, or specifications.\\n4. Reply in {{ $('Detect Language & Format History').item.json.language_name }}.\\n5. Be friendly, concise, and helpful.\\n6. When mentioning a product, you may include its URL inline using markdown.\\n\\nRetrieved Context:\\n{{ $('KB Retrieval & Scoring').item.json.retrieved_context }}\\n\\nRecent conversation (last 10 turns):\\n{{ $('Detect Language & Format History').item.json.history_formatted }}\",\n  \"messages\": [\n    { \"role\": \"user\", \"content\": \"{{ $('Validate Request').item.json.message }}\" }\n  ]\n}",
         "options": {
-          "retry": { "maxRetries": 2, "waitBetweenRetries": 1500 },
           "timeout": 15000
         }
       },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 1500,
       "id": "http-claude",
       "name": "Claude Response",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [1140, 400]
+      "position": [
+        1140,
+        400
+      ]
     },
     {
       "parameters": {
@@ -138,13 +207,24 @@
       "name": "Enrich with Links",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1360, 400]
+      "position": [
+        1360,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CONVERSATIONS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.CONVERSATIONS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Conversations"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -163,16 +243,33 @@
       "name": "Log User Message",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1580, 280],
+      "position": [
+        1580,
+        280
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Hostzera"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.CONVERSATIONS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.CONVERSATIONS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Conversations"
+        },
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
@@ -191,10 +288,19 @@
       "name": "Log AI Response",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [1580, 520],
+      "position": [
+        1580,
+        520
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Hostzera" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Hostzera"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -206,26 +312,143 @@
       "name": "Return to Widget",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [1800, 400]
+      "position": [
+        1800,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "id": "b0755f13-0a01-4f80-86fd-ce5509928c2a",
+      "name": "Wait for Context",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        940,
+        540
+      ]
     }
   ],
   "pinData": {},
   "connections": {
-    "Chat Widget Webhook": { "main": [[{ "node": "Validate Request", "type": "main", "index": 0 }]] },
-    "Validate Request": { "main": [[
-      { "node": "Get Knowledge Base", "type": "main", "index": 0 },
-      { "node": "Get Session History", "type": "main", "index": 0 }
-    ]] },
-    "Get Knowledge Base": { "main": [[{ "node": "KB Retrieval & Scoring", "type": "main", "index": 0 }]] },
-    "Get Session History": { "main": [[{ "node": "Detect Language & Format History", "type": "main", "index": 0 }]] },
-    "KB Retrieval & Scoring": { "main": [[{ "node": "Claude Response", "type": "main", "index": 0 }]] },
-    "Detect Language & Format History": { "main": [[{ "node": "Claude Response", "type": "main", "index": 0 }]] },
-    "Claude Response": { "main": [[{ "node": "Enrich with Links", "type": "main", "index": 0 }]] },
-    "Enrich with Links": { "main": [[
-      { "node": "Log User Message", "type": "main", "index": 0 },
-      { "node": "Log AI Response", "type": "main", "index": 0 },
-      { "node": "Return to Widget", "type": "main", "index": 0 }
-    ]] }
+    "Chat Widget Webhook": {
+      "main": [
+        [
+          {
+            "node": "Validate Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Request": {
+      "main": [
+        [
+          {
+            "node": "Get Knowledge Base",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Session History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Knowledge Base": {
+      "main": [
+        [
+          {
+            "node": "KB Retrieval & Scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Session History": {
+      "main": [
+        [
+          {
+            "node": "Detect Language & Format History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "KB Retrieval & Scoring": {
+      "main": [
+        [
+          {
+            "node": "Wait for Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Detect Language & Format History": {
+      "main": [
+        [
+          {
+            "node": "Wait for Context",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Claude Response": {
+      "main": [
+        [
+          {
+            "node": "Enrich with Links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enrich with Links": {
+      "main": [
+        [
+          {
+            "node": "Log User Message",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log AI Response",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Return to Widget",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait for Context": {
+      "main": [
+        [
+          {
+            "node": "Claude Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
   "settings": {
@@ -235,11 +458,22 @@
     "errorWorkflow": "REPLACE_WITH_ERROR_WORKFLOW_ID"
   },
   "versionId": "v2.0.1-hostzera-chat",
-  "meta": { "templateCredsSetupCompleted": false },
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
   "id": "hostzera-chat-v2",
   "tags": [
-    { "name": "chat-widget", "id": "tag-widget" },
-    { "name": "retrieval-grounded", "id": "tag-rag" },
-    { "name": "production", "id": "tag-production" }
+    {
+      "name": "chat-widget",
+      "id": "tag-widget"
+    },
+    {
+      "name": "retrieval-grounded",
+      "id": "tag-rag"
+    },
+    {
+      "name": "production",
+      "id": "tag-production"
+    }
   ]
 }

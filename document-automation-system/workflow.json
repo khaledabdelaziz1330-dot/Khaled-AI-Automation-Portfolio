@@ -12,15 +12,26 @@
       "name": "📘 Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-220, 80]
+      "position": [
+        -220,
+        80
+      ]
     },
     {
       "parameters": {
-        "pollTimes": { "item": [{ "mode": "everyMinute" }] },
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyMinute"
+            }
+          ]
+        },
         "simple": false,
         "filters": {
           "sender": "={{ $env.ALLOWED_PDF_SENDERS }}",
-          "labelIds": ["INBOX"],
+          "labelIds": [
+            "INBOX"
+          ],
           "readStatus": "unread"
         },
         "options": {
@@ -32,9 +43,15 @@
       "name": "Gmail New PDF",
       "type": "n8n-nodes-base.gmailTrigger",
       "typeVersion": 1.2,
-      "position": [240, 400],
+      "position": [
+        240,
+        400
+      ],
       "credentials": {
-        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Construction" }
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail - Construction"
+        }
       }
     },
     {
@@ -45,7 +62,10 @@
       "name": "Filter PDFs Only",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 400]
+      "position": [
+        460,
+        400
+      ]
     },
     {
       "parameters": {
@@ -59,11 +79,18 @@
       "name": "Extract PDF Text",
       "type": "n8n-nodes-base.extractFromFile",
       "typeVersion": 1,
-      "position": [680, 400]
+      "position": [
+        680,
+        400
+      ]
     },
     {
       "parameters": {
-        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
         "messages": {
           "values": [
             {
@@ -86,10 +113,19 @@
       "name": "AI Rule Extraction",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [900, 400],
+      "position": [
+        900,
+        400
+      ],
       "credentials": {
-        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
-      }
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     },
     {
       "parameters": {
@@ -99,7 +135,10 @@
       "name": "Calculation Engine (Deterministic)",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 400]
+      "position": [
+        1120,
+        400
+      ]
     },
     {
       "parameters": {
@@ -109,17 +148,26 @@
       "name": "Generate QA Report",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 400]
+      "position": [
+        1340,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false, "typeValidation": "strict" },
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
           "conditions": [
             {
               "leftValue": "={{ $json.can_auto_export }}",
               "rightValue": true,
-              "operator": { "type": "boolean", "operation": "true" }
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ],
           "combinator": "and"
@@ -129,18 +177,26 @@
       "name": "Quality Gate",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1560, 400]
+      "position": [
+        1560,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "create",
-        "options": { "headerRow": true }
+        "options": {
+          "headerRow": true
+        }
       },
       "id": "excel-gen",
       "name": "Generate Excel",
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
-      "position": [1780, 280]
+      "position": [
+        1780,
+        280
+      ]
     },
     {
       "parameters": {
@@ -149,7 +205,11 @@
         "message": "=Your specification PDF has been processed.\\n\\nQuality Score: {{ $json.quality_score }}% ({{ $json.quality_label }})\\nTotal Items: {{ $json.summary.total_items }}\\nBalanced: {{ $json.summary.items_balanced }}\\n\\nSee attached Excel file with all calculated values.\\n\\nWarnings: {{ $json.warnings.length || 'None' }}\\n\\nRun ID: {{ $json.run_id }}",
         "options": {
           "attachmentsUi": {
-            "attachmentsBinary": [{ "property": "excel" }]
+            "attachmentsBinary": [
+              {
+                "property": "excel"
+              }
+            ]
           }
         }
       },
@@ -157,9 +217,15 @@
       "name": "Send Excel Result",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [2000, 280],
+      "position": [
+        2000,
+        280
+      ],
       "credentials": {
-        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Construction" }
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail - Construction"
+        }
       }
     },
     {
@@ -172,43 +238,172 @@
       "name": "Send to Review Queue",
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
-      "position": [2000, 520],
+      "position": [
+        2000,
+        520
+      ],
       "credentials": {
-        "gmailOAuth2": { "id": "REPLACE_GMAIL_CREDENTIAL_ID", "name": "Gmail - Construction" }
+        "gmailOAuth2": {
+          "id": "REPLACE_GMAIL_CREDENTIAL_ID",
+          "name": "Gmail - Construction"
+        }
       }
     },
     {
       "parameters": {
         "operation": "append",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.PROCESSING_LOG_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "ProcessingLog" },
-        "columns": { "mappingMode": "autoMapInputData" }
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.PROCESSING_LOG_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "ProcessingLog"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData"
+        }
       },
       "id": "sheets-log",
       "name": "Log Processing Run",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2220, 400],
+      "position": [
+        2220,
+        400
+      ],
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Processing" }
-      }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Processing"
+        }
+      },
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000
     }
   ],
   "pinData": {},
   "connections": {
-    "Gmail New PDF": { "main": [[{ "node": "Filter PDFs Only", "type": "main", "index": 0 }]] },
-    "Filter PDFs Only": { "main": [[{ "node": "Extract PDF Text", "type": "main", "index": 0 }]] },
-    "Extract PDF Text": { "main": [[{ "node": "AI Rule Extraction", "type": "main", "index": 0 }]] },
-    "AI Rule Extraction": { "main": [[{ "node": "Calculation Engine (Deterministic)", "type": "main", "index": 0 }]] },
-    "Calculation Engine (Deterministic)": { "main": [[{ "node": "Generate QA Report", "type": "main", "index": 0 }]] },
-    "Generate QA Report": { "main": [[{ "node": "Quality Gate", "type": "main", "index": 0 }]] },
-    "Quality Gate": { "main": [
-      [{ "node": "Generate Excel", "type": "main", "index": 0 }],
-      [{ "node": "Send to Review Queue", "type": "main", "index": 0 }]
-    ] },
-    "Generate Excel": { "main": [[{ "node": "Send Excel Result", "type": "main", "index": 0 }]] },
-    "Send Excel Result": { "main": [[{ "node": "Log Processing Run", "type": "main", "index": 0 }]] },
-    "Send to Review Queue": { "main": [[{ "node": "Log Processing Run", "type": "main", "index": 0 }]] }
+    "Gmail New PDF": {
+      "main": [
+        [
+          {
+            "node": "Filter PDFs Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter PDFs Only": {
+      "main": [
+        [
+          {
+            "node": "Extract PDF Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract PDF Text": {
+      "main": [
+        [
+          {
+            "node": "AI Rule Extraction",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Rule Extraction": {
+      "main": [
+        [
+          {
+            "node": "Calculation Engine (Deterministic)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculation Engine (Deterministic)": {
+      "main": [
+        [
+          {
+            "node": "Generate QA Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate QA Report": {
+      "main": [
+        [
+          {
+            "node": "Quality Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quality Gate": {
+      "main": [
+        [
+          {
+            "node": "Generate Excel",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send to Review Queue",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generate Excel": {
+      "main": [
+        [
+          {
+            "node": "Send Excel Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Excel Result": {
+      "main": [
+        [
+          {
+            "node": "Log Processing Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send to Review Queue": {
+      "main": [
+        [
+          {
+            "node": "Log Processing Run",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
   "settings": {
@@ -219,8 +414,17 @@
   "versionId": "v2.0.1-doc-automation",
   "id": "document-automation-v2",
   "tags": [
-    { "name": "document-processing", "id": "tag-doc" },
-    { "name": "deterministic", "id": "tag-det" },
-    { "name": "production", "id": "tag-production" }
+    {
+      "name": "document-processing",
+      "id": "tag-doc"
+    },
+    {
+      "name": "deterministic",
+      "id": "tag-det"
+    },
+    {
+      "name": "production",
+      "id": "tag-production"
+    }
   ]
 }

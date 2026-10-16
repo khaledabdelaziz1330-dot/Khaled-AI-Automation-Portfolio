@@ -3,16 +3,19 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Gym Lead Pipeline\n\n**Capacity:** 150+ leads/month with full state tracking\n\n**Pipeline:** New → Hot → Trial Booked → Attended → Member / Lost\n\n**Stack:** n8n + OpenAI + WhatsApp/IG/FB + Google Calendar + Sheets\n\n**Critical feature:** Sequence cancellation triggers prevent annoying users (if lead becomes member, all pending reminders auto-cancel)",
+        "content": "## Gym Lead Pipeline\n\n**In production:** 1,450 inbound messages over 90 days at one location (see PERFORMANCE.md)\n\n**Statuses written by this workflow:** New -> Hot -> Trial Booked\n(Attended / Member / Lost are set downstream)\n\n**Stack:** n8n + OpenAI (gpt-4o) + Google Sheets + Google Calendar\n\n**Booking rule:** trial slots are fixed per weekday and capped at 5 attendees; the cap is enforced in code, not by the model.",
         "height": 320,
         "width": 400,
         "color": 7
       },
-      "id": "sn-overview",
+      "id": "76451523-adb7-4e15-a97a-67592dc92568",
       "name": "📘 Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-220, 80]
+      "position": [
+        -220,
+        80
+      ]
     },
     {
       "parameters": {
@@ -20,64 +23,110 @@
         "path": "gym-leads",
         "responseMode": "responseNode"
       },
-      "id": "webhook",
+      "id": "061ccaab-7a98-4cbc-9030-bcab6e52ec59",
       "name": "Multi-Channel Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 400],
-      "webhookId": "gym-leads-webhook"
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "d5c2f8b2-1181-4537-b27a-04bbab9d86a4"
     },
     {
       "parameters": {
         "jsCode": "// Multi-channel payload normalizer\nconst raw = $input.first().json.body || $input.first().json;\nlet channel, normalized;\n\nif (raw.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {\n  channel = 'whatsapp';\n  const msg = raw.entry[0].changes[0].value.messages[0];\n  const contact = raw.entry[0].changes[0].value.contacts?.[0];\n  normalized = {\n    user_id: msg.from,\n    user_name: contact?.profile?.name || null,\n    message_text: msg.text?.body || '',\n    message_id: msg.id,\n  };\n} else if (raw.object === 'instagram' || raw.object === 'page') {\n  channel = raw.object === 'instagram' ? 'instagram' : 'messenger';\n  const event = raw.entry[0].messaging[0];\n  normalized = {\n    user_id: event.sender.id,\n    user_name: null,\n    message_text: event.message?.text || '',\n    message_id: event.message?.mid,\n  };\n} else if (raw.message?.chat) {\n  channel = 'telegram';\n  normalized = {\n    user_id: String(raw.message.from.id),\n    user_name: `${raw.message.from.first_name || ''} ${raw.message.from.last_name || ''}`.trim(),\n    message_text: raw.message.text || '',\n    message_id: String(raw.message.message_id),\n  };\n} else {\n  throw new Error('Unknown channel');\n}\n\nreturn [{\n  json: {\n    channel,\n    ...normalized,\n    received_at: new Date().toISOString(),\n  },\n}];"
       },
-      "id": "code-normalize",
+      "id": "7c2f20eb-aaf7-4293-bfdd-d16afb3f6a33",
       "name": "Normalize Message",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 400]
+      "position": [
+        460,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEADS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Leads" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.LEADS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads"
+        },
         "lookupColumn": "user_id",
         "lookupValue": "={{ $json.user_id }}",
         "returnAllMatches": false,
         "options": {}
       },
-      "id": "get-lead",
+      "id": "1007ba9f-acf7-4df9-809e-eaf1fc91c24f",
       "name": "Get Lead Record",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 280],
+      "position": [
+        680,
+        280
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Gym" }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Gym"
+        }
       }
     },
     {
       "parameters": {
         "operation": "lookup",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEADS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Conversations" },
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.LEADS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Conversations"
+        },
         "lookupColumn": "user_id",
-        "lookupValue": "={{ $('Normalize Message').item.json.user_id }}",
+        "lookupValue": "={{ $('Normalize Message').first().json.user_id }}",
         "returnAllMatches": true,
         "options": {}
       },
-      "id": "get-history",
+      "id": "eb20826c-16eb-4c50-918c-c027c727466d",
       "name": "Get Conversation History",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 520],
+      "position": [
+        680,
+        520
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Gym" }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Gym"
+        }
       }
     },
     {
       "parameters": {
-        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o" },
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o"
+        },
         "messages": {
           "values": [
             {
@@ -86,145 +135,349 @@
             },
             {
               "role": "user",
-              "content": "=Existing lead record: {{ JSON.stringify($('Get Lead Record').item?.json || {}) }}\nRecent conversation:\n{{ $('Get Conversation History').all().slice(-5).map(m => `${m.json.direction}: ${m.json.message_text}`).join('\\n') }}\n\nLatest message: {{ $('Normalize Message').item.json.message_text }}"
+              "content": "=Existing lead record: {{ JSON.stringify($('Get Lead Record').first()?.json || {}) }}\nRecent conversation:\n{{ $('Get Conversation History').all().slice(-5).map(m => `${m.json.direction}: ${m.json.message_text}`).join('\\n') }}\n\nLatest message: {{ $('Normalize Message').first().json.message_text }}"
             }
           ]
         },
-        "options": { "temperature": 0.5, "responseFormat": "json_object" }
+        "options": {
+          "temperature": 0.5,
+          "responseFormat": "json_object"
+        }
       },
-      "id": "ai-qualify",
+      "id": "094770b1-8253-4825-82a2-c1e591ff2d01",
       "name": "AI Qualifier",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [900, 400],
+      "position": [
+        900,
+        400
+      ],
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
-        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI"
+        }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Lead status state machine\nconst aiResult = JSON.parse($input.first().json.message.content);\nconst lead = $('Get Lead Record').item?.json || {};\nconst currentStatus = lead.status || 'New';\n\nconst transitions = {\n  'New': {\n    'greeting': 'New',\n    'qualifying': 'New',\n    'booking_ready': 'Hot',\n  },\n  'Hot': {\n    'booking_ready': 'Hot',\n    'qualifying': 'Hot',\n  },\n  'Trial Booked': {\n    'qualifying': 'Trial Booked',\n  },\n};\n\nconst newStatus = transitions[currentStatus]?.[aiResult.detected_intent] || currentStatus;\n\nreturn [{\n  json: {\n    user_id: $('Normalize Message').item.json.user_id,\n    channel: $('Normalize Message').item.json.channel,\n    previous_status: currentStatus,\n    new_status: newStatus,\n    status_changed: newStatus !== currentStatus,\n    ai_result: aiResult,\n    collected_info: aiResult.collected_info,\n    reply_text: aiResult.reply_to_user,\n    ready_to_book: aiResult.ready_to_book,\n    updated_at: new Date().toISOString(),\n  },\n}];"
+        "jsCode": "// Lead status state machine\nconst aiResult = JSON.parse($input.first().json.message.content);\nconst lead = $('Get Lead Record').first()?.json || {};\nconst currentStatus = lead.status || 'New';\n\nconst transitions = {\n  'New': {\n    'greeting': 'New',\n    'qualifying': 'New',\n    'booking_ready': 'Hot',\n  },\n  'Hot': {\n    'booking_ready': 'Hot',\n    'qualifying': 'Hot',\n  },\n  'Trial Booked': {\n    'qualifying': 'Trial Booked',\n  },\n};\n\nconst newStatus = transitions[currentStatus]?.[aiResult.detected_intent] || currentStatus;\n\nreturn [{\n  json: {\n    user_id: $('Normalize Message').first().json.user_id,\n    channel: $('Normalize Message').first().json.channel,\n    previous_status: currentStatus,\n    new_status: newStatus,\n    status_changed: newStatus !== currentStatus,\n    ai_result: aiResult,\n    collected_info: aiResult.collected_info,\n    reply_text: aiResult.reply_to_user,\n    ready_to_book: aiResult.ready_to_book,\n    updated_at: new Date().toISOString(),\n  },\n}];"
       },
-      "id": "code-status",
+      "id": "b20e1f91-626d-4446-aa19-f80032d36280",
       "name": "Update Pipeline Status",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1120, 400]
+      "position": [
+        1120,
+        400
+      ]
     },
     {
       "parameters": {
         "conditions": {
-          "options": { "caseSensitive": false, "typeValidation": "strict" },
-          "conditions": [{
-            "leftValue": "={{ $json.ready_to_book }}",
-            "rightValue": true,
-            "operator": { "type": "boolean", "operation": "true" }
-          }],
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $json.ready_to_book }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
           "combinator": "and"
         }
       },
-      "id": "if-ready",
+      "id": "b777be6a-76ac-455c-a75b-54aae4129752",
       "name": "Ready to Book?",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
-      "position": [1340, 400]
+      "position": [
+        1340,
+        400
+      ]
     },
     {
       "parameters": {
         "operation": "getAll",
-        "calendar": { "__rl": true, "mode": "list", "value": "={{ $env.GYM_CALENDAR_ID }}" },
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $env.GYM_CALENDAR_ID }}"
+        },
         "returnAll": false,
         "limit": 50,
         "timeMin": "={{ $now.toISO() }}",
         "timeMax": "={{ $now.plus({ days: 7 }).toISO() }}",
-        "options": { "singleEvents": true, "orderBy": "startTime" }
+        "options": {
+          "singleEvents": true,
+          "orderBy": "startTime"
+        }
       },
-      "id": "get-cal",
+      "id": "5b7bfcb2-7723-4aa1-ad1c-dc32705b775c",
       "name": "Get Trial Class Slots",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
-      "position": [1560, 280],
+      "position": [
+        1560,
+        280
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
-        "googleCalendarOAuth2Api": { "id": "REPLACE_CALENDAR_CREDENTIAL_ID", "name": "Google Calendar - Gym" }
+        "googleCalendarOAuth2Api": {
+          "id": "REPLACE_CALENDAR_CREDENTIAL_ID",
+          "name": "Google Calendar - Gym"
+        }
       }
     },
     {
       "parameters": {
         "jsCode": "// Find available trial class slots\nconst events = $input.all().map(e => e.json);\n\nconst TRIAL_SLOTS = {\n  1: [9, 11, 17, 19], // Monday\n  2: [9, 11, 17, 19], // Tuesday\n  3: [9, 11, 17, 19], // Wednesday\n  4: [9, 11, 17, 19], // Thursday\n  5: [9, 11, 17, 19], // Friday\n  6: [10, 12, 14],   // Saturday\n  0: [10, 12, 14],   // Sunday\n};\nconst MAX_PER_SLOT = 5;\n\nfunction countAttendees(slotStartISO, events) {\n  return events.filter(e => {\n    const eventStart = new Date(e.start.dateTime).getTime();\n    const target = new Date(slotStartISO).getTime();\n    return Math.abs(eventStart - target) < 60000;\n  }).length;\n}\n\nconst now = new Date();\nconst availableSlots = [];\n\nfor (let dayOffset = 1; dayOffset <= 7 && availableSlots.length < 5; dayOffset++) {\n  const date = new Date(now.getTime() + dayOffset * 86400000);\n  const dayHours = TRIAL_SLOTS[date.getDay()] || [];\n  \n  for (const hour of dayHours) {\n    const slot = new Date(date);\n    slot.setHours(hour, 0, 0, 0);\n    \n    if (countAttendees(slot.toISOString(), events) < MAX_PER_SLOT) {\n      availableSlots.push({\n        start_iso: slot.toISOString(),\n        end_iso: new Date(slot.getTime() + 60 * 60 * 1000).toISOString(),\n        display: slot.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),\n      });\n    }\n  }\n}\n\nreturn [{\n  json: {\n    available_slots: availableSlots.slice(0, 3),\n    has_availability: availableSlots.length > 0,\n  },\n}];"
       },
-      "id": "code-slots",
+      "id": "54b40588-9944-4f79-8284-2fcfa36cf116",
       "name": "Find Available Slots",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1780, 280]
+      "position": [
+        1780,
+        280
+      ]
     },
     {
       "parameters": {
         "operation": "create",
-        "calendar": { "__rl": true, "mode": "list", "value": "={{ $env.GYM_CALENDAR_ID }}" },
+        "calendar": {
+          "__rl": true,
+          "mode": "list",
+          "value": "={{ $env.GYM_CALENDAR_ID }}"
+        },
         "start": "={{ $json.available_slots[0].start_iso }}",
         "end": "={{ $json.available_slots[0].end_iso }}",
         "additionalFields": {
-          "summary": "=Trial Class - {{ $('Update Pipeline Status').item.json.collected_info.name }}",
-          "description": "=Lead from {{ $('Update Pipeline Status').item.json.channel }}\\nGoals: {{ $('Update Pipeline Status').item.json.collected_info.goals }}\\nPhone: {{ $('Update Pipeline Status').item.json.collected_info.phone }}"
+          "summary": "=Trial Class - {{ $('Update Pipeline Status').first().json.collected_info.name }}",
+          "description": "=Lead from {{ $('Update Pipeline Status').first().json.channel }}\\nGoals: {{ $('Update Pipeline Status').first().json.collected_info.goals }}\\nPhone: {{ $('Update Pipeline Status').first().json.collected_info.phone }}"
         }
       },
-      "id": "book-trial",
+      "id": "a9bbb409-9285-4a06-8185-dae51d1aed4c",
       "name": "Book Trial Class",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
-      "position": [2000, 280],
+      "position": [
+        2000,
+        280
+      ],
       "credentials": {
-        "googleCalendarOAuth2Api": { "id": "REPLACE_CALENDAR_CREDENTIAL_ID", "name": "Google Calendar - Gym" }
+        "googleCalendarOAuth2Api": {
+          "id": "REPLACE_CALENDAR_CREDENTIAL_ID",
+          "name": "Google Calendar - Gym"
+        }
       }
     },
     {
       "parameters": {
         "operation": "appendOrUpdate",
-        "documentId": { "__rl": true, "mode": "id", "value": "={{ $env.LEADS_SHEET_ID }}" },
-        "sheetName": { "__rl": true, "mode": "name", "value": "Leads" },
-        "columns": { "mappingMode": "autoMapInputData", "matchingColumns": ["user_id"] }
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.LEADS_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Leads"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $('Update Pipeline Status').first().json.user_id }}",
+            "channel": "={{ $('Update Pipeline Status').first().json.channel }}",
+            "status": "={{ $('Book Trial Class').isExecuted ? 'Trial Booked' : $('Update Pipeline Status').first().json.new_status }}",
+            "name": "={{ $('Update Pipeline Status').first().json.collected_info?.name || '' }}",
+            "phone": "={{ $('Update Pipeline Status').first().json.collected_info?.phone || '' }}",
+            "goals": "={{ $('Update Pipeline Status').first().json.collected_info?.goals || '' }}",
+            "experience": "={{ $('Update Pipeline Status').first().json.collected_info?.experience || '' }}",
+            "preferred_time": "={{ $('Update Pipeline Status').first().json.collected_info?.preferred_time || '' }}",
+            "trial_start": "={{ $('Book Trial Class').isExecuted ? $('Book Trial Class').first().json.start.dateTime : '' }}",
+            "updated_at": "={{ $('Update Pipeline Status').first().json.updated_at }}"
+          },
+          "matchingColumns": [
+            "user_id"
+          ]
+        }
       },
-      "id": "save-lead",
+      "id": "c6c4d280-3cb2-4f65-8805-c84dd20e8fd4",
       "name": "Save Lead Record",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2220, 400],
+      "position": [
+        2220,
+        400
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
-        "googleSheetsOAuth2Api": { "id": "REPLACE_SHEETS_CREDENTIAL_ID", "name": "Google Sheets - Gym" }
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Gym"
+        }
       }
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={ \"status\": \"ok\", \"reply\": \"{{ $('Update Pipeline Status').item.json.reply_text }}\" }"
+        "responseBody": "={{ JSON.stringify({ status: 'ok', reply: $('Update Pipeline Status').first().json.reply_text }) }}"
       },
-      "id": "respond",
+      "id": "4bed3c77-0d58-45d9-81ca-11cbc13987d5",
       "name": "Webhook Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2440, 400]
+      "position": [
+        2440,
+        400
+      ]
     }
   ],
   "pinData": {},
   "connections": {
-    "Multi-Channel Webhook": { "main": [[{ "node": "Normalize Message", "type": "main", "index": 0 }]] },
-    "Normalize Message": { "main": [[
-      { "node": "Get Lead Record", "type": "main", "index": 0 },
-      { "node": "Get Conversation History", "type": "main", "index": 0 }
-    ]] },
-    "Get Lead Record": { "main": [[{ "node": "AI Qualifier", "type": "main", "index": 0 }]] },
-    "Get Conversation History": { "main": [[{ "node": "AI Qualifier", "type": "main", "index": 0 }]] },
-    "AI Qualifier": { "main": [[{ "node": "Update Pipeline Status", "type": "main", "index": 0 }]] },
-    "Update Pipeline Status": { "main": [[{ "node": "Ready to Book?", "type": "main", "index": 0 }]] },
-    "Ready to Book?": { "main": [
-      [{ "node": "Get Trial Class Slots", "type": "main", "index": 0 }],
-      [{ "node": "Save Lead Record", "type": "main", "index": 0 }]
-    ] },
-    "Get Trial Class Slots": { "main": [[{ "node": "Find Available Slots", "type": "main", "index": 0 }]] },
-    "Find Available Slots": { "main": [[{ "node": "Book Trial Class", "type": "main", "index": 0 }]] },
-    "Book Trial Class": { "main": [[{ "node": "Save Lead Record", "type": "main", "index": 0 }]] },
-    "Save Lead Record": { "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]] }
+    "Multi-Channel Webhook": {
+      "main": [
+        [
+          {
+            "node": "Normalize Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Message": {
+      "main": [
+        [
+          {
+            "node": "Get Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Lead Record": {
+      "main": [
+        [
+          {
+            "node": "Get Conversation History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Conversation History": {
+      "main": [
+        [
+          {
+            "node": "AI Qualifier",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Qualifier": {
+      "main": [
+        [
+          {
+            "node": "Update Pipeline Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Pipeline Status": {
+      "main": [
+        [
+          {
+            "node": "Ready to Book?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ready to Book?": {
+      "main": [
+        [
+          {
+            "node": "Get Trial Class Slots",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Save Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Trial Class Slots": {
+      "main": [
+        [
+          {
+            "node": "Find Available Slots",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Available Slots": {
+      "main": [
+        [
+          {
+            "node": "Book Trial Class",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Book Trial Class": {
+      "main": [
+        [
+          {
+            "node": "Save Lead Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Save Lead Record": {
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
   },
   "active": false,
   "settings": {
@@ -235,8 +488,17 @@
   "versionId": "v2.0.1-gym-leads",
   "id": "gym-leads-v2",
   "tags": [
-    { "name": "gym", "id": "tag-gym" },
-    { "name": "lead-pipeline", "id": "tag-pipeline" },
-    { "name": "production", "id": "tag-production" }
+    {
+      "name": "gym",
+      "id": "tag-gym"
+    },
+    {
+      "name": "lead-pipeline",
+      "id": "tag-pipeline"
+    },
+    {
+      "name": "production",
+      "id": "tag-production"
+    }
   ]
 }

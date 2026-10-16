@@ -8,21 +8,20 @@ PDF-to-Excel pipeline for construction specifications. **Core principle: AI for 
 
 ```mermaid
 flowchart TD
-    A[Construction PDF] --> B[Email Inbox Watcher]
-    B --> C[PDF Parser]
-    C --> D[Duplicate Detection]
-    D --> E[AI Rule Extraction]
-    E --> F[Deterministic Calculation Engine]
-    F --> G[Validation & QA]
-    G --> H{Quality Threshold}
-    H -->|Pass| I[Excel Generator]
-    H -->|Fail| J[Human Review Queue]
-    J --> K[Manual Correction]
-    K --> I
-    I --> L[Send to Recipient]
-    I --> M[Archive + Audit Log]
-    
-    N[Error Trigger] -.->|On Failure| O[Slack Alert]
+    A[Construction PDF emailed] --> B["Gmail New PDF<br/>trigger, sender allow-list"]
+    B --> C[Filter PDFs Only]
+    C --> D[Extract PDF Text]
+    D --> E["AI Rule Extraction<br/>OpenAI gpt-4o, JSON mode"]
+    E --> F["Calculation Engine<br/>deterministic + duplicate detection"]
+    F --> G[Generate QA Report]
+    G --> H{"Quality Gate<br/>score ≥ 70% and no warnings"}
+    H -->|Pass| I[Generate Excel]
+    I --> J[Send Excel Result to sender]
+    H -->|Fail| K[Send to Review Queue]
+    J --> L[(Log Processing Run)]
+    K --> L
+
+    X[Any node fails] -.->|errorWorkflow setting| Y[Shared error handler]
 ```
 
 ## Critical principle visualization
@@ -35,54 +34,50 @@ flowchart LR
         L3[Extract percentages as written]
         L4[Recognize relationships]
     end
-    
+
     subgraph Math [Code Domain]
         M1[Multiply quantity × percent]
         M2[Aggregate child items]
         M3[Validate sums]
         M4[Round to precision]
     end
-    
+
     Language --> Boundary[Structured JSON Boundary]
     Boundary --> Math
 ```
 
-**Why the split is rigid:** LLMs hallucinate numbers. In construction documents, a wrong calculation means real money lost or safety issues. By forcing arithmetic into deterministic code, this category of error is eliminated entirely.
+**Why the split is rigid:** LLMs are unreliable at arithmetic. In construction documents, a wrong calculation means real money lost or safety issues. Forcing arithmetic into deterministic code removes that error class; what remains is extraction error, which the QA layer is built to surface.
 
 ## Processing flow
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Email
+    participant Sender
+    participant Gmail
     participant n8n
-    participant PDFParser
     participant OpenAI
     participant CalcEngine
-    participant ExcelGen
+    participant Reviewer
     participant Sheets
-    
-    User->>Email: Forwards PDF
-    Email-->>n8n: Trigger workflow
-    n8n->>PDFParser: Extract text + structure
-    PDFParser-->>n8n: Raw text
-    n8n->>n8n: Check duplicates (item names)
+
+    Sender->>Gmail: Emails specification PDF
+    Gmail-->>n8n: Trigger (polled every minute)
+    n8n->>n8n: Keep PDF attachments, assign run_id
+    n8n->>n8n: Extract PDF text
     n8n->>OpenAI: Extract rules as JSON
     Note over OpenAI: Numbers AS WRITTEN<br/>No calculations
     OpenAI-->>n8n: Structured rules
     n8n->>CalcEngine: Compute quantities
     Note over CalcEngine: ALL arithmetic<br/>here, deterministic
-    CalcEngine-->>n8n: Calculated items
-    n8n->>n8n: Validate percentages sum to 100
-    n8n->>n8n: Generate QA report
-    alt Quality >= 70%
-        n8n->>ExcelGen: Generate Excel
-        ExcelGen-->>n8n: .xlsx file
-        n8n->>User: Email Excel + QA report
+    CalcEngine-->>n8n: Calculated items + duplicates
+    n8n->>n8n: Generate QA report (score, warnings)
+    alt Score ≥ 70% and no warnings
+        n8n->>n8n: Generate Excel
+        n8n->>Sender: Email Excel + QA summary
         n8n->>Sheets: Log run
-    else Quality < 70%
-        n8n->>User: Email "needs review" + report
-        n8n->>Sheets: Queue for manual review
+    else Below threshold or any warning
+        n8n->>Reviewer: Email "needs review" + warnings
+        n8n->>Sheets: Log run
     end
 ```
 
@@ -127,23 +122,24 @@ Item A (parent):
 ```
 Item A-1: reuse 300, dispose 180, clean_store 120 (sums to 600 ✓)
 Item A-2: reuse 280, dispose 80, clean_store 40 (sums to 400 ✓)
-Item A (parent): total children qty 1000, balanced ✓
+Item A (parent): 2 children, children total qty 1000
 ```
 
-**Final Excel output:** structured table with all calculated values, organized by parent → child hierarchy.
+**Final Excel output:** a spreadsheet of the calculated values, emailed back to the sender together with the QA score and warning count.
 
 ## Quality assurance layer
 
 Every run generates a QA report:
 
-| QA Check | What it validates |
-|---|---|
-| **Percent balance** | Each item's percentages sum to 100% |
-| **Quantity conservation** | Sum of calculated actions equals total quantity |
-| **Duplicate detection** | No item name appears twice in extraction |
-| **Parent-child consistency** | Child quantities sum to parent total |
-| **Completeness** | All items have quantity values |
-| **Format integrity** | Generated Excel passes schema check |
+| QA Check | What it validates | Effect |
+|---|---|---|
+| **Percent balance** | Each item's action percentages sum to 100% | Warning + lowers score |
+| **Duplicate detection** | No item name appears twice in the extraction | Warning + lowers score |
+| **Quantity validity** | Each item has a positive numeric quantity | Warning (`invalid_quantity`) |
+| **Completeness** | Share of items with a stated quantity | Lowers score |
+| **Quantity conservation** | Computed action quantities sum to the item quantity | Reported per item (`quantity_balanced`) |
+| **Parent aggregation** | Child count and total child quantity per parent | Reported per parent |
+| **Action coverage** | Share of items with action rules | Recommendation if under 80% |
 
 **Quality score formula:**
 ```
@@ -152,23 +148,25 @@ score = (balanced_items / total_items) * 0.5
       + (completeness_ratio) * 0.2
 ```
 
-Scores below 70% route to human review.
+**Gate:** a run auto-exports only when the score is ≥ 70% **and** the warnings list is empty. Any blocking warning routes the run to human review regardless of score.
 
 ## Reliability features
 
 | Feature | Implementation |
 |---|---|
-| **Idempotent processing** | Same PDF reprocessed = same output |
-| **Auditable runs** | Every run has UUID, full log in Google Sheets |
-| **QA report per run** | Operator knows what was processed and any concerns |
-| **Graceful degradation** | Low-quality outputs route to humans, not silently shipped |
-| **Sanitized error logs** | No client data in Slack alerts |
-| **Retry logic** | PDF parsing retries on transient failures |
+| **Deterministic downstream** | Given the same extraction, calculations, QA score and gate decision are reproducible; extraction runs at temperature 0 in JSON mode |
+| **Auditable runs** | Every PDF gets a `run_id`, carried into emails and the Google Sheets processing log |
+| **QA report per run** | Operator sees score, warnings and recommendations for every document |
+| **Graceful degradation** | Low-quality outputs route to humans, never silently shipped |
+| **Fail fast** | Emails without PDFs, and extractions with zero rules, stop the run with an explicit error |
+| **Centralized error handling** | Failures go to the [shared error handler](../shared-error-handler) via the `errorWorkflow` setting |
 
 ## Performance characteristics
 
-- **Average processing time:** 15-30 seconds per PDF
-- **Cost per document:** ~$0.05 (GPT-4 + storage)
-- **Accuracy:** 100% on arithmetic (deterministic by design)
-- **Extraction accuracy:** ~94% on text recognition (PDF quality dependent)
-- **Manual review rate:** ~6% of documents (due to source ambiguity)
+Summary of [PERFORMANCE.md](PERFORMANCE.md):
+
+- **Processing time:** 15–30 seconds per PDF typical, ~60 s P95
+- **Cost per document:** ~$0.03–0.05 (gpt-4o extraction)
+- **Arithmetic:** 100% correct by construction (deterministic code, given the extracted inputs)
+- **Extraction accuracy:** 94–97% on item names, quantities and percentage rules; 88% on parent-child relationships
+- **Threshold pass rate:** 84% of runs score ≥ 70%; the remaining 16% always go to human review

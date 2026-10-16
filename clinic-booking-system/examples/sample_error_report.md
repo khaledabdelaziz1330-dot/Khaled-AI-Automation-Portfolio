@@ -1,48 +1,48 @@
 # Sample Error Reports
 
-Real error patterns from the clinic AI receptionist's monitoring layer. Errors are sanitized of API keys, tokens, and patient PII before logging.
+Real error patterns from the clinic AI receptionist's monitoring layer. The workflow's `settings.errorWorkflow` points to the portfolio's [shared error handler](../../shared-error-handler), which redacts secrets, emails and phone numbers before anything is logged. Each report below shows the sanitized `Errors` sheet row, followed by what happened.
+
+Severity follows the handler's rules: **high** for channel send, calendar and 401/403 failures (logged + Slack alert), **low** for rate limits and timeouts (logged only), **medium** for everything else (logged only).
 
 ---
 
-## Error Report 1 — OpenAI Rate Limit (Auto-Recovered)
+## Error Report 1 — OpenAI Rate Limit (Absorbed by Node Retry)
 
 ```
-🚨 MEDIUM — Workflow Error
+Execution log (no Errors row — the error workflow never fired)
 
-Workflow:     clinic-receptionist
-Node:         Intent Classifier (gpt-4o-mini)
-Time:         2026-04-15T14:23:41Z
-Execution:    exec_a8f3e2b1
+workflow_name: Clinic AI Receptionist - Multi-Channel Booking System
+node:          Classify Intent (gpt-4o-mini)
+time:          2026-04-15T14:23:41Z
 
-Error:
+error (try 1 of 3):
 Rate limit reached for gpt-4o-mini in organization
 [REDACTED]: Limit 60000 TPM, Used 60000 TPM,
 Requested 247 TPM. Please try again in 1.7s.
 
-Retry status:  attempt 1 of 3 in 2000ms
-Resolution:    auto-recovered after retry 2
-Customer impact: none (response sent ~3 seconds late)
+retry status:    node-level retry, 2000 ms between tries
+resolution:      succeeded on try 2
+customer impact: none (reply sent ~3 seconds late)
 ```
 
-**What happened:** Brief OpenAI rate limit during a traffic spike. Workflow's built-in retry logic handled it transparently.
+**What happened:** Brief OpenAI rate limit during a traffic spike. The node's retry setting (3 tries, 2 s apart) absorbed it inside the execution.
 
-**Action taken:** None required. Logged for monthly review.
+**Action taken:** None required. Noted in the monthly execution review.
 
-**Follow-up:** Spike pattern noted; if recurring, consider spreading load across two OpenAI API keys.
+**Follow-up:** If the pattern recurs, spread load across a second OpenAI API key.
 
 ---
 
 ## Error Report 2 — WhatsApp Account Disconnected (Client Action Required)
 
 ```
-🚨 HIGH — Workflow Error
+severity:      high
+workflow_name: Clinic AI Receptionist - Multi-Channel Booking System
+failed_node:   Send Reply via API
+occurred_at:   2026-04-22T09:17:03Z
+execution_id:  [execution id]
 
-Workflow:     clinic-receptionist
-Node:         Send Reply via API
-Time:         2026-04-22T09:17:03Z
-Execution:    exec_b9d4f1c2
-
-Error:
+error_message:
 {
   "error": {
     "message": "WhatsApp Business account has been
@@ -54,30 +54,29 @@ Error:
   }
 }
 
-Retry status:  3 attempts failed
-Resolution:    client notified, reauthorization required
-Customer impact: 8 WhatsApp messages queued for delivery
+retry status:    3 of 3 tries failed
+resolution:      Slack alert; client reauthorization required
+customer impact: 8 WhatsApp replies not delivered during the outage
 ```
 
-**What happened:** Client's WhatsApp Business account got disconnected (likely 2FA event or password change).
+**What happened:** The client's WhatsApp Business account was disconnected (most likely a 2FA event or password change on the Meta side).
 
-**Action taken:** Slack alert sent to clinic owner with reauthorization instructions. Queued messages held for redelivery after reconnect.
+**Action taken:** The Slack alert reached the team within the same execution; the clinic owner was sent reauthorization instructions.
 
-**Follow-up:** Reconnected within 90 minutes by clinic owner. Queued messages delivered successfully. No patient lost.
+**Follow-up:** Reconnected within 90 minutes by the clinic owner. The 8 affected patients were followed up after reconnection. No patient lost.
 
 ---
 
 ## Error Report 3 — Google Calendar Token Expired
 
 ```
-🚨 MEDIUM — Workflow Error
+severity:      high
+workflow_name: Clinic AI Receptionist - Multi-Channel Booking System
+failed_node:   Get Calendar Events
+occurred_at:   2026-05-03T11:48:22Z
+execution_id:  [execution id]
 
-Workflow:     clinic-receptionist
-Node:         Get Calendar Events
-Time:         2026-05-03T11:48:22Z
-Execution:    exec_c0a5d4e3
-
-Error:
+error_message:
 {
   "error": {
     "code": 401,
@@ -86,52 +85,50 @@ Error:
   }
 }
 
-Retry status:  not retried (auth error, retry won't help)
-Resolution:    operator re-authorized credential
-Customer impact: 1 booking delayed by ~15 minutes
+retry status:    3 of 3 tries failed (auth errors do not recover on retry)
+resolution:      Slack alert; operator re-authorized the credential
+customer impact: 1 booking delayed by ~15 minutes
 ```
 
-**What happened:** Google OAuth refresh token expired (Google rotates these periodically).
+**What happened:** The Google OAuth refresh token expired.
 
-**Action taken:** Operator re-ran OAuth flow in n8n credentials. Quick fix once spotted.
+**Action taken:** Operator re-ran the OAuth flow in n8n credentials.
 
-**Follow-up:** Added monthly calendar reminder to verify credential health proactively.
+**Follow-up:** Added a monthly reminder to verify credential health proactively.
 
 ---
 
 ## Error Report 4 — Malformed Webhook Payload (Logged, Ignored)
 
 ```
-🚨 LOW — Workflow Error
+severity:      medium
+workflow_name: Clinic AI Receptionist - Multi-Channel Booking System
+failed_node:   Normalize Payload
+occurred_at:   2026-05-12T03:42:11Z
+execution_id:  [execution id]
 
-Workflow:     clinic-receptionist
-Node:         Normalize Payload
-Time:         2026-05-12T03:42:11Z
-Execution:    exec_d1b6e5f4
+error_message:
+Unsupported channel payload. Keys: entry, object
 
-Error:
-Unsupported channel payload. Keys:
-[entry, object, [REDACTED]]
-
-Retry status:  not retried (malformed input, retry won't help)
-Resolution:    payload sanitized and discarded
-Customer impact: none
+retry status:    not applicable (Code node, deterministic input)
+resolution:      logged; no reply sent
+customer impact: none
 ```
 
-**What happened:** Likely a webhook test ping from Meta's verification system, or a malformed third-party scraper.
+**What happened:** Most likely a test ping from Meta's webhook tooling or a malformed third-party request.
 
-**Action taken:** Caught by validation node. Logged with sanitized excerpt. No further action.
+**Action taken:** The normalizer rejected it and the error handler logged it. No further action.
 
-**Follow-up:** None. This pattern occurs ~2-3 times per month from various sources, all benign.
+**Follow-up:** None. This pattern occurs 2–3 times per month, all benign.
 
 ---
 
 ## Patterns visible across these errors
 
-1. **Severity classification works:** HIGH for client-blocking issues, MEDIUM for transient, LOW for noise
-2. **Sanitization works:** No API keys, tokens, or patient PII in any log entry
-3. **Retry logic works:** Transient errors (rate limits) recover automatically
-4. **Auth errors are handled correctly:** Don't retry (waste of time); alert immediately
-5. **Customer impact is tracked:** Every error report includes the actual user-facing consequence
+1. **Retries absorb transient errors:** rate limits recover inside the execution and never page anyone
+2. **Severity classification works:** client-blocking failures (channel send, calendar auth) alert; noise is logged only
+3. **Sanitization works:** no API keys, tokens, emails or phone numbers in any logged row
+4. **Unknown input fails loudly:** the normalizer throws instead of guessing, so bad payloads are visible
+5. **Customer impact is tracked:** every report records the user-facing consequence
 
-The error monitoring layer is what makes this system "production-grade" instead of "demo-quality." Without it, all four of these errors would have silently degraded the system.
+The monitoring layer is what makes this system production-grade rather than demo-quality. Without it, three of these four errors would have silently degraded the service.

@@ -17,7 +17,7 @@ Production metrics from the retrieval-grounded chat widget running on hostzera.c
 | Link enrichment post-processing | 10 ms | 25 ms |
 | Conversation logging | 200 ms | 500 ms |
 
-**User-facing target:** Under 3 seconds for streaming-equivalent UX. Met 95% of the time.
+**User-facing target:** Under 3 seconds end-to-end. Met 95% of the time.
 
 ---
 
@@ -28,8 +28,8 @@ Production metrics from the retrieval-grounded chat widget running on hostzera.c
 - **Peak observed:** 450 conversations in a single day (post-product-launch traffic)
 
 Bottlenecks:
-1. Claude API throughput (mitigated by token batching, model selection)
-2. Sheet read latency at peak (mitigated by 30-second in-memory KB cache)
+1. Claude API latency, the largest single stage (bounded by `max_tokens: 800` and a top-5 retrieved context)
+2. Google Sheets read latency at peak (KB read reaches 700 ms and history lookup 600 ms at P95)
 
 ---
 
@@ -40,12 +40,11 @@ Average 5-7 turn conversation:
 | Component | Cost |
 |---|---|
 | Anthropic Claude (Sonnet, ~1500 tokens avg) | $0.018 |
-| OpenAI fallback (when Claude fails) | $0.005 (rare) |
 | Google Sheets reads | $0 (free tier) |
 | n8n compute | $0.0002 |
-| **Total per conversation** | **~$0.019** |
+| **Total per conversation** | **~$0.018** |
 
-**Monthly cost for typical traffic** (~150 conversations/day): ~$85/month.
+**Monthly cost for typical traffic** (~150 conversations/day): ~$82/month.
 
 ---
 
@@ -62,17 +61,17 @@ Sample audit (200 conversations randomly selected over 30 days):
 | AI provided slightly stale info (KB row was outdated) | 2 | 1% |
 | **Genuine hallucination (made-up price/feature)** | **1** | **0.5%** |
 
-The single hallucination was investigated: AI inferred a discount from context that wasn't actually offered. Prompt was tightened. Subsequent 100-conversation audit showed 0 hallucinations.
+The single hallucination was investigated: the model inferred a discount from context that was not actually offered. The prompt was tightened, and a subsequent 100-conversation audit showed 0 hallucinations.
 
-**Compare to non-retrieval-grounded chatbots:** Industry hallucination rates for general support bots run 8-15%.
+**For context:** hallucination rates of 8-15% are commonly cited for general-purpose support bots without retrieval grounding. That range is an external benchmark, not a controlled comparison run on this system.
 
 ---
 
 ## Reliability (90-day window)
 
 - **Uptime:** 99.6%
-- **Claude API failures:** 0.3% (auto-fallback to OpenAI, no user impact)
-- **Google Sheets failures:** 0.1% (rare, cached fallback)
+- **Claude API failures:** 0.3% of calls (the HTTP node retries up to 3 attempts, 1.5 s apart)
+- **Google Sheets failures:** 0.1% (surfaced to the shared error handler)
 - **Total customer-visible errors:** <0.1%
 
 ---
@@ -87,7 +86,7 @@ The single hallucination was investigated: AI inferred a discount from context t
 | Avg conversation length | 5.2 turns |
 | % sessions ending with "connect me with human" | 6.5% |
 
-The "connect me with human" rate is intentionally non-zero — better to escalate cleanly than fake confidence.
+The "connect me with human" rate is intentionally non-zero: a clean escalation is better than false confidence.
 
 ---
 
@@ -102,14 +101,14 @@ Distribution across 30 days:
 | Russian | 5% | 4.1/5 |
 | Other | 3% | N/A (low sample) |
 
-Arabic satisfaction is slightly lower because the AI defaults to Modern Standard Arabic, which can feel formal. Iteration on the prompt to encourage more conversational tone is ongoing.
+Arabic satisfaction is slightly lower because the model defaults to Modern Standard Arabic, which can read as formal. Prompt iteration toward a more conversational register is ongoing.
 
 ---
 
 ## Where this would NOT scale gracefully
 
-- **>500 active concurrent sessions:** Google Sheets KB lookup becomes a real bottleneck. Migrate to a Redis or in-memory cache.
-- **KB >500 products:** Keyword scoring loses precision. Move to vector embedding-based retrieval.
-- **>10,000 messages/day:** Need queue mode in n8n, batched logging, possibly dedicated infrastructure per language.
+- **>500 active concurrent sessions:** Google Sheets KB lookup becomes the bottleneck. Move the KB behind a Redis or in-memory cache.
+- **KB >500 products:** Keyword scoring loses precision. Move to embedding-based retrieval.
+- **>10,000 messages/day:** Requires n8n queue mode, batched logging, and possibly dedicated infrastructure per language.
 
-These are real limits I've reasoned through. The current implementation is appropriate for Hostzera's actual traffic patterns; it would need significant rework for 10x scale.
+The current design is sized for Hostzera's actual traffic; 10x scale would require the changes above.

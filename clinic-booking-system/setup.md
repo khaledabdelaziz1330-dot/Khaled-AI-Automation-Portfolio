@@ -1,160 +1,142 @@
 # Setup & Deployment — Clinic AI Receptionist
 
-How to deploy this workflow to a self-hosted n8n instance and configure it for a clinic.
+How to deploy [`workflow.json`](./workflow.json) to a self-hosted n8n instance and configure it for a clinic.
 
 ---
 
 ## Prerequisites
 
 - n8n instance (self-hosted via Docker recommended) — `n8n v1.x` or newer
-- OpenAI API key with GPT-4 access
-- Google Cloud project with Calendar API and Sheets API enabled
-- WhatsApp Business API access (via Meta Cloud API)
-- Optional: Instagram Business account connected to Facebook Page, Messenger access, Telegram Bot Token
-- Slack workspace for error alerts (optional but recommended)
+- OpenAI API key with access to `gpt-4o` and `gpt-4o-mini`
+- Google Cloud project with the Calendar API and Sheets API enabled
+- WhatsApp Business API access (Meta Cloud API)
+- Optional: Instagram professional account connected to a Facebook Page, Messenger access, Telegram bot token
+- The portfolio's [shared error handler](../shared-error-handler) imported, with a Slack workspace for alerts (recommended)
 
 ## Step 1 — Import the workflow
 
 ```bash
-# Download the workflow JSON
 # In n8n: Workflows → Import from File → workflow.json
 ```
 
-The imported workflow will contain placeholder credentials. You'll connect real credentials in Step 2.
+The imported workflow contains placeholder credential IDs (`REPLACE_*_CREDENTIAL_ID`). You connect real credentials in Step 2.
 
 ## Step 2 — Configure credentials
 
-In n8n → Credentials, create the following:
+In n8n → Credentials, create the following and select them on the matching nodes:
 
-| Credential | Type | Required fields |
+| Credential | Type | Used by |
 |---|---|---|
-| OpenAI API | OpenAI API | `apiKey` (from platform.openai.com) |
-| Google Sheets | Google Sheets OAuth2 | OAuth flow with Sheets read/write scope |
-| Google Calendar | Google Calendar OAuth2 | OAuth flow with Calendar read/write scope |
-| WhatsApp Business | HTTP Header Auth | `Authorization: Bearer <META_ACCESS_TOKEN>` |
-| Telegram Bot | Telegram | Bot token from @BotFather |
-| Slack (errors) | Slack OAuth2 | OAuth flow with `chat:write` |
+| OpenAI | OpenAI API | `Classify Intent`, `Extract Booking Details`, `Generate Booking Reply`, `Generate Greeting Reply` |
+| Google Sheets | Google Sheets OAuth2 (read/write) | `Log Inbound to Sheets`, `Get Conversation History`, `Log Outbound to Sheets` |
+| Google Calendar | Google Calendar OAuth2 (read) | `Get Calendar Events` |
 
-## Step 3 — Configure Google Sheets data layer
+Channel access tokens are **not** stored as n8n credentials in this workflow. They are read from environment variables inside `Send Reply via API` at request time, so they never appear in execution data (Step 4).
 
-Create a Google Sheet with these tabs:
+## Step 3 — Configure the Google Sheets data layer
+
+Create a Google Sheet with a `Conversations` tab. The workflow appends to and reads from these columns:
 
 ### Tab: `Conversations`
-| Column A | B | C | D | E | F | G | H | I |
-|---|---|---|---|---|---|---|---|---|
-| timestamp | user_id | user_name | channel | direction | message_text | intent | booking_id | status |
+| Column A | B | C | D | E | F | G | H |
+|---|---|---|---|---|---|---|---|
+| timestamp | user_id | user_name | channel | direction | message_text | intent | status |
 
-### Tab: `Bookings`
-| Column A | B | C | D | E | F | G | H | I |
-|---|---|---|---|---|---|---|---|---|
-| booking_id | patient_name | phone | service | start_datetime | end_datetime | channel | status | created_at |
-
-### Tab: `FAQ_Knowledge`
-| Column A | B | C |
-|---|---|---|
-| question_keywords | answer | language |
-
-### Tab: `Services`
-| Column A | B | C |
-|---|---|---|
-| service_name | duration_minutes | price |
-
-Copy the Sheet ID (from the URL) and paste it into the workflow's "Sheet ID" variables.
+Copy the Sheet ID from the URL; it goes into `CONVERSATIONS_SHEET_ID` in Step 4.
 
 ## Step 4 — Configure environment variables
 
-In your n8n instance, set the following environment variables:
+Set these on the n8n container. Every variable below is referenced by the workflow:
 
 ```bash
-CLINIC_NAME="Your Clinic Name"
-CLINIC_ADDRESS="Full clinic address"
-CLINIC_PHONE="+1234567890"
-BUSINESS_HOURS_START=9  # 9 AM
-BUSINESS_HOURS_END=19  # 7 PM
-SLOT_DURATION_MIN=30
-BUFFER_BETWEEN_BOOKINGS_MIN=15
-DEFAULT_LANGUAGE="en"  # or "ar" for Arabic-first
-TIMEZONE="Africa/Cairo"  # or your clinic's timezone
-SLACK_ERROR_CHANNEL="#clinic-bot-errors"
+# Data
+CONVERSATIONS_SHEET_ID="<google-sheet-id>"
+CLINIC_CALENDAR_ID="<calendar-id>@group.calendar.google.com"
+
+# Channel credentials (resolved inside "Send Reply via API" only)
+WHATSAPP_PHONE_NUMBER_ID="<meta-phone-number-id>"
+WHATSAPP_ACCESS_TOKEN="<meta-access-token>"
+IG_ACCESS_TOKEN="<instagram-page-access-token>"
+FB_PAGE_ACCESS_TOKEN="<facebook-page-access-token>"
+TELEGRAM_BOT_TOKEN="<botfather-token>"
+
+# n8n runtime
+N8N_BLOCK_ENV_ACCESS_IN_NODE=false   # the workflow reads $env in node parameters
+GENERIC_TIMEZONE="Africa/Cairo"      # matches the workflow's timezone setting
+TZ="Africa/Cairo"                    # Code-node date math runs in server local time
 ```
+
+**Scheduling rules** (business hours 09:00–19:00, 30-minute slots, 15-minute buffer, 30-minute lead time, Fridays closed) are constants at the top of the `Calculate Availability` Code node. Edit them there for a different clinic.
 
 ## Step 5 — Set up webhook endpoints
 
-The workflow exposes one webhook URL. You'll need to point each channel at it:
+The workflow exposes one POST webhook. Point every channel at it:
 
 ```
 https://your-n8n-instance.com/webhook/clinic-receptionist
 ```
 
 ### WhatsApp
-Configure your Meta Cloud API webhook:
+Configure the Meta Cloud API webhook:
 - Callback URL: the webhook URL above
-- Verify Token: any string (also set in workflow)
-- Subscribe to `messages` field
+- Subscribe to the `messages` field
+
+Meta verifies a webhook with a one-time `GET` request (`hub.challenge`). This export only registers the `POST` handler, so answer the verification with a `GET` webhook on the same path.
 
 ### Instagram
-Same Meta webhook — Instagram messages are routed through the Messenger Platform.
+Same Meta app — subscribe the Instagram `messages` field to the same callback URL.
 
 ### Messenger
-Add the webhook URL to your Facebook App → Messenger → Webhooks.
+Add the webhook URL under your Facebook App → Messenger → Webhooks and subscribe to `messages` and `messaging_postbacks`.
 
 ### Telegram
 ```bash
-curl -X POST https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook \
+curl -X POST "https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook" \
   -d "url=https://your-n8n-instance.com/webhook/clinic-receptionist"
 ```
 
-## Step 6 — Customize the FAQ knowledge base
+## Step 6 — Tailor the prompts to the clinic
 
-In the `FAQ_Knowledge` tab, add common questions and answers:
+All clinic-specific language lives in four OpenAI nodes:
 
-| question_keywords | answer | language |
-|---|---|---|
-| price, cost, how much, fees | Our consultation fee is $50. Treatment prices depend on your needs. | en |
-| hours, open, time | We are open Monday-Friday 9am-7pm, Saturday 10am-3pm. | en |
-| location, address, where | We are at [CLINIC_ADDRESS]. Free parking available. | en |
-| سعر, ثمن, كام | الكشف بـ 50 دولار. أسعار العلاج تختلف حسب الحالة. | ar |
+| Node | What to change |
+|---|---|
+| `Classify Intent` | Clinic type in the first line; keep the seven labels unchanged (the Switch node matches them) |
+| `Extract Booking Details` | The service list and timezone |
+| `Generate Booking Reply` | Clinic location, tone and the "no slots" fallback message |
+| `Generate Greeting Reply` | Greeting tone and word limit |
 
-The AI uses these to ground its responses — no hallucination, no made-up prices.
+Keep the instruction *"Do NOT make up slot times. Use ONLY what is provided."* in `Generate Booking Reply` — it is what keeps the model from inventing availability.
 
-## Step 7 — Activate workflows
+## Step 7 — Connect error handling
 
-In n8n:
+1. Import the [shared error handler](../shared-error-handler) and configure its Sheets and Slack credentials
+2. In this workflow, open **Settings → Error workflow** and select it (replaces `REPLACE_WITH_ERROR_WORKFLOW_ID`)
+
+External API nodes already retry 3 times, 2 seconds apart. Only failures that survive those retries reach the error handler.
+
+## Step 8 — Activate
+
 1. Open the imported workflow
-2. Test the webhook with a test message
-3. Verify the response appears in your messaging channel
+2. Send a test message from one channel
+3. Verify the reply arrives in that channel and both rows appear in `Conversations`
 4. Toggle the workflow to **Active**
 
-## Step 8 — Set up monitoring
+## Step 9 — Pre-launch testing checklist
 
-The workflow includes a connected Error Trigger that:
-1. Captures any failure
-2. Sanitizes sensitive data
-3. Sends a Slack alert with full context
-
-**Recommended Slack channels:**
-- `#clinic-bot-errors` — every error
-- `#clinic-bot-summary` — daily digest of bookings and metrics
-
-## Step 9 — Initial testing checklist
-
-Before going live:
-
-- [ ] Send "hi" from each channel — verify greeting response
-- [ ] Send "how much is a cleaning?" — verify FAQ lookup works
-- [ ] Send "I want to book a cleaning tomorrow at 3pm" — verify booking flow
-- [ ] Send "تقدر تحجزلي بكره؟" (Arabic) — verify bilingual handling
-- [ ] Send gibberish — verify polite handoff response
-- [ ] Force an error (invalid API key) — verify Slack alert fires
-- [ ] Check booking appears in Google Calendar
-- [ ] Check conversation logged in Google Sheets
-- [ ] Wait for 24-hour reminder timing — verify it sends
+- [ ] Send "hi" from each channel — verify a greeting reply in the same channel
+- [ ] Send "how much is a cleaning?" — verify it classifies as `FAQ` and gets a short reply
+- [ ] Send "I want to book a cleaning tomorrow at 3pm" — verify up to 3 slots, all free in Google Calendar
+- [ ] Reply "yes, the first one" — verify it classifies as `CONFIRMATION` and slots are re-checked
+- [ ] Send "تقدر تحجزلي بكره؟" (Arabic) — verify the reply is in Arabic
+- [ ] Send a complaint — verify no automated reply and an inbound row with no outbound row
+- [ ] Open a finished execution — verify no access token appears in any node's output
+- [ ] Force an error (invalid OpenAI key) — verify 3 tries, then a row in the `Errors` sheet
 
 ## Step 10 — Go live
 
-When everything passes testing:
-1. Inform clinic staff of the new system
-2. Document the escalation path (which messages route to a human)
+1. Brief clinic staff on the new system
+2. Document the escalation path: complaints and unclassified messages are left for staff, identified by inbound rows without an outbound reply
 3. Monitor Slack alerts for the first week
 4. Review conversation logs daily for the first month to tune prompts
 
@@ -163,10 +145,11 @@ When everything passes testing:
 | Task | Frequency |
 |---|---|
 | Review conversation logs for prompt improvement | Weekly (first month), then monthly |
-| Check Slack errors | Daily |
-| Update FAQ knowledge base | As clinic adds services |
+| Check Slack errors and the `Errors` sheet | Daily |
+| Update the service list in the prompts | As the clinic adds services |
 | Review booking conversion metrics | Monthly |
-| Update business hours / holidays | As needed |
+| Update business hours and closed days in `Calculate Availability` | As needed |
+| Re-authorize Google OAuth credentials if expired | Roughly every 90 days |
 | n8n version updates | Quarterly |
 
 ## Cost estimate (per month)
@@ -174,38 +157,37 @@ When everything passes testing:
 | Item | Cost |
 |---|---|
 | n8n self-hosted (VPS) | $5–$20 |
-| OpenAI API (1000 conversations) | $30–$60 |
-| WhatsApp Business API | $0–$50 (volume-based) |
-| Google Workspace | $0 (free tier sufficient) |
-| **Total** | **~$50–$150/month** |
+| API costs, small clinic (< 50 inquiries/day) | $15–$25 |
+| API costs, medium clinic (50–150 inquiries/day) | $50–$90 |
+| API costs, large / multi-location (150–500 inquiries/day) | $150–$300 |
 
-Compare to ~$2,000/month for a full-time receptionist handling the same workload.
+API costs cover OpenAI and WhatsApp Business messaging; Google Sheets and Calendar stay within the free tier. Per-conversation breakdown in [`PERFORMANCE.md`](./PERFORMANCE.md).
 
 ## Troubleshooting
 
 ### Bot doesn't respond
-1. Check workflow is **Active** in n8n
-2. Check webhook URL matches channel configuration
-3. Check OpenAI credit is not exhausted
-4. Check Slack error channel for recent failures
+1. Check the workflow is **Active**
+2. Check the webhook URL matches each channel's configuration
+3. Check the message wasn't classified `COMPLAINT` or `OTHER` (no automated reply by design)
+4. Check OpenAI credit is not exhausted
+5. Check the `Errors` sheet and Slack channel for recent failures
 
-### Bookings not appearing in Calendar
-1. Verify Google Calendar OAuth is still authorized
-2. Check Calendar ID is correct in workflow variables
-3. Test Calendar API access manually via n8n credentials test
+### Offered slots look wrong
+1. Verify `CLINIC_CALENDAR_ID` points to the clinic's booking calendar
+2. Verify the Google Calendar OAuth credential is still authorized
+3. Verify `TZ` on the n8n container matches the clinic's timezone — slot generation uses server local time
 
-### Responses are slow (>5 seconds)
-1. Check OpenAI status page for outages
-2. Reduce conversation history retrieved (5 → 3 messages)
-3. Switch intent classifier to gpt-4o-mini if using gpt-4o
+### Responses are slow (> 5 seconds)
+1. Check the OpenAI status page for degradation
+2. Check executions for node retries (each retry waits 2 seconds)
+3. Check the `Conversations` sheet size — the history lookup reads all of a patient's rows
 
 ### Wrong language in responses
-1. Verify `DEFAULT_LANGUAGE` env variable
-2. Check prompt explicitly instructs "reply in the same language as the user"
-3. Add language detection node before AI calls
+1. Check the reply prompts still instruct the model to reply in the user's language
+2. Check the incoming text was extracted correctly by `Normalize Payload`
 
 ## Contact
 
-For questions about this deployment or customization help:
+For questions about this deployment or customization:
 - **LinkedIn:** [Khaled Abdelaziz](https://linkedin.com/in/khaledabdelaziz-ai)
 - **Email:** [khaledabdelaziz1330@gmail.com](mailto:khaledabdelaziz1330@gmail.com)

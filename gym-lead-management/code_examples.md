@@ -1,247 +1,213 @@
 # Code Examples — Gym Lead Management System
 
-Production code from the gym lead pipeline. Multi-channel inbound → AI qualification → trial booking → membership conversion.
+Prompts, JavaScript and node configuration taken directly from [`workflow.json`](./workflow.json): multi-channel inbound → AI qualification → trial booking → lead record. Section 4 shows a production component that is not part of the export.
 
 ---
 
-## 1. Lead Qualification AI Prompt
+## 1. Lead Qualification — OpenAI Node (gpt-4o)
 
-After greeting, the AI gathers qualification info conversationally.
+One call per turn returns the reply, the collected fields, a booking-ready flag and a detected intent as JSON (temperature 0.5, `json_object` response format).
 
-```javascript
-// n8n OpenAI Node — Conversational Lead Qualifier
+**System prompt:**
 
-const conversationHistory = $('Get History').first().json.messages || [];
-const currentMessage = $('Normalize Message').first().json.text;
-
-const systemPrompt = `You are a friendly gym receptionist gathering qualification info for new leads.
+```text
+You are a friendly gym receptionist gathering qualification info for new leads.
 
 Goals in order:
-1. Greet warmly if this is a first message
-2. Collect: fitness goals, experience level, preferred training time, preferred location (if multi-gym)
-3. Once you have enough, offer a free trial class booking
+1. Greet warmly if first message
+2. Collect: fitness goals, experience level, preferred training time, preferred location (if applicable)
+3. Once enough info collected, offer a free trial class booking
 
-Tone: Warm, energetic, not pushy. Match the language the user wrote in.
+Tone: Warm, energetic, not pushy. Match the language the user wrote in (Arabic or English).
 
 Hard rules:
 - Never promise specific results ("you'll lose 20 lbs")
-- Never quote membership prices (route to sales team for that)
+- Never quote membership prices (route to sales team)
 - Never claim medical/health expertise
-- Always offer human handoff if the user seems frustrated
+- Offer human handoff if user seems frustrated
 
-When you have name + goals + preferred time, respond with the JSON object:
+Return JSON:
 {
-  "ready_to_book": true,
+  "ready_to_book": <boolean>,
   "collected_info": {
     "name": "...",
     "phone": "...",
     "goals": "...",
     "experience": "...",
-    "preferred_time": "...",
-    "preferred_location": "..."
+    "preferred_time": "..."
   },
-  "reply_to_user": "..."
+  "reply_to_user": "...",
+  "detected_intent": "<greeting | qualifying | booking_ready | complaint | other>"
 }
+```
 
-Otherwise respond with just:
-{
-  "ready_to_book": false,
-  "reply_to_user": "..."
-}`;
+**User message (n8n expression) — existing lead record, last 5 turns, latest message:**
 
-return [{
-  json: {
-    model: 'gpt-4o',
-    messages: [
-      { role: 'system', content: systemPrompt },
-      ...conversationHistory.map(m => ({ role: m.role, content: m.text })),
-      { role: 'user', content: currentMessage },
-    ],
-    temperature: 0.5,
-    response_format: { type: 'json_object' },
-  },
-}];
+```text
+Existing lead record: {{ JSON.stringify($('Get Lead Record').first()?.json || {}) }}
+Recent conversation:
+{{ $('Get Conversation History').all().slice(-5).map(m => `${m.json.direction}: ${m.json.message_text}`).join('\n') }}
+
+Latest message: {{ $('Normalize Message').first().json.message_text }}
 ```
 
 ---
 
-## 2. Pipeline Status Updater
+## 2. Pipeline Status Updater — Deterministic State Machine
 
-Updates the lead status across stages: New → Hot → Trial Booked → Member / Lost.
+The model reports an intent; code decides the status. Unknown intents (`complaint`, `other`) leave the status unchanged.
 
 ```javascript
-// n8n Code Node — Lead Status Manager
+// n8n Code Node — Update Pipeline Status
+// Lead status state machine
+const aiResult = JSON.parse($input.first().json.message.content);
+const lead = $('Get Lead Record').first()?.json || {};
+const currentStatus = lead.status || 'New';
 
-const lead = $input.first().json;
-const action = $input.first().json.action; // 'message_received', 'trial_booked', 'trial_attended', 'membership_signed', 'lost'
-
-const STATUS_TRANSITIONS = {
+const transitions = {
   'New': {
-    'message_received': 'New',
-    'qualified': 'Hot',
-    'no_response_7d': 'Cold',
+    'greeting': 'New',
+    'qualifying': 'New',
+    'booking_ready': 'Hot',
   },
   'Hot': {
-    'trial_booked': 'Trial Booked',
-    'no_response_3d': 'Hot (Follow-up needed)',
-    'lost': 'Lost',
+    'booking_ready': 'Hot',
+    'qualifying': 'Hot',
   },
   'Trial Booked': {
-    'trial_attended': 'Attended Trial',
-    'trial_no_show': 'No-show (Trial)',
-    'cancelled_trial': 'Hot (Reschedule needed)',
-  },
-  'Attended Trial': {
-    'membership_signed': 'Member',
-    'wants_to_think': 'Considering',
-    'declined': 'Lost',
-  },
-  'Considering': {
-    'membership_signed': 'Member',
-    'no_response_14d': 'Lost',
-  },
-  'No-show (Trial)': {
-    're_engaged': 'Hot',
-    'no_response_7d': 'Lost',
+    'qualifying': 'Trial Booked',
   },
 };
 
-const currentStatus = lead.status || 'New';
-const transitionMap = STATUS_TRANSITIONS[currentStatus] || {};
-const newStatus = transitionMap[action] || currentStatus;
-
-if (newStatus === currentStatus) {
-  return [{
-    json: {
-      lead_id: lead.id,
-      status_unchanged: true,
-      current_status: currentStatus,
-    },
-  }];
-}
+const newStatus = transitions[currentStatus]?.[aiResult.detected_intent] || currentStatus;
 
 return [{
   json: {
-    lead_id: lead.id,
-    status_changed: true,
+    user_id: $('Normalize Message').first().json.user_id,
+    channel: $('Normalize Message').first().json.channel,
     previous_status: currentStatus,
     new_status: newStatus,
-    transition_reason: action,
-    changed_at: new Date().toISOString(),
-    next_action: getNextAction(newStatus),
+    status_changed: newStatus !== currentStatus,
+    ai_result: aiResult,
+    collected_info: aiResult.collected_info,
+    reply_text: aiResult.reply_to_user,
+    ready_to_book: aiResult.ready_to_book,
+    updated_at: new Date().toISOString(),
   },
 }];
-
-function getNextAction(status) {
-  const nextActions = {
-    'Hot': 'Send trial offer message within 1 hour',
-    'Trial Booked': 'Send 24h reminder + 2h reminder',
-    'No-show (Trial)': 'Send re-engagement after 3 days',
-    'Considering': 'Send follow-up at days 1, 3, 7',
-    'Member': 'Add to onboarding sequence',
-    'Lost': 'Add to monthly re-engagement list',
-  };
-  return nextActions[status] || null;
-}
 ```
+
+This workflow writes `New`, `Hot` and `Trial Booked`. Later statuses (`Attended Trial`, `Member`, `Lost`) are set downstream by the production follow-up agent or by staff.
 
 ---
 
-## 3. Trial Class Booking Logic
+## 3. Trial Class Booking — Capacity Enforced in Code
 
-Books a trial class on Google Calendar with availability check.
+`Get Trial Class Slots` reads the next 7 days of the trial calendar. `Find Available Slots` applies the fixed weekly schedule and the per-slot cap:
 
 ```javascript
-// n8n Code Node — Trial Class Booking
+// n8n Code Node — Find Available Slots
+// Find available trial class slots
+const events = $input.all().map(e => e.json);
 
-const leadInfo = $('Qualified Lead').first().json;
-const calendarEvents = $('Get Calendar Events').first().json.items || [];
-
-// Trial classes happen at fixed times
 const TRIAL_SLOTS = {
-  monday: [9, 11, 17, 19],
-  tuesday: [9, 11, 17, 19],
-  wednesday: [9, 11, 17, 19],
-  thursday: [9, 11, 17, 19],
-  friday: [9, 11, 17, 19],
-  saturday: [10, 12, 14],
-  sunday: [10, 12, 14],
+  1: [9, 11, 17, 19], // Monday
+  2: [9, 11, 17, 19], // Tuesday
+  3: [9, 11, 17, 19], // Wednesday
+  4: [9, 11, 17, 19], // Thursday
+  5: [9, 11, 17, 19], // Friday
+  6: [10, 12, 14],   // Saturday
+  0: [10, 12, 14],   // Sunday
 };
+const MAX_PER_SLOT = 5;
 
-const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const MAX_PER_SLOT = 5; // max 5 trial attendees per slot
+function countAttendees(slotStartISO, events) {
+  return events.filter(e => {
+    const eventStart = new Date(e.start.dateTime).getTime();
+    const target = new Date(slotStartISO).getTime();
+    return Math.abs(eventStart - target) < 60000;
+  }).length;
+}
 
-function generateSlots(daysAhead = 7) {
-  const slots = [];
-  const now = new Date();
+const now = new Date();
+const availableSlots = [];
+
+for (let dayOffset = 1; dayOffset <= 7 && availableSlots.length < 5; dayOffset++) {
+  const date = new Date(now.getTime() + dayOffset * 86400000);
+  const dayHours = TRIAL_SLOTS[date.getDay()] || [];
   
-  for (let dayOffset = 1; dayOffset <= daysAhead; dayOffset++) {
-    const date = new Date(now.getTime() + dayOffset * 86400000);
-    const dayName = DAY_NAMES[date.getDay()];
-    const hours = TRIAL_SLOTS[dayName] || [];
+  for (const hour of dayHours) {
+    const slot = new Date(date);
+    slot.setHours(hour, 0, 0, 0);
     
-    for (const hour of hours) {
-      const slotStart = new Date(date);
-      slotStart.setHours(hour, 0, 0, 0);
-      slots.push({
-        start: slotStart,
-        end: new Date(slotStart.getTime() + 60 * 60 * 1000), // 1 hour trial
-        day_name: dayName,
-        hour,
+    if (countAttendees(slot.toISOString(), events) < MAX_PER_SLOT) {
+      availableSlots.push({
+        start_iso: slot.toISOString(),
+        end_iso: new Date(slot.getTime() + 60 * 60 * 1000).toISOString(),
+        display: slot.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
       });
     }
   }
-  return slots;
-}
-
-function isSlotAvailable(slot, events) {
-  const attendeeCount = events.filter(event => {
-    const eventStart = new Date(event.start.dateTime).getTime();
-    return eventStart === slot.start.getTime();
-  }).length;
-  return attendeeCount < MAX_PER_SLOT;
-}
-
-const allSlots = generateSlots();
-const availableSlots = allSlots.filter(slot => isSlotAvailable(slot, calendarEvents));
-
-// Match to preferred time if specified
-let recommended = availableSlots.slice(0, 3);
-if (leadInfo.preferred_time) {
-  const preferredHour = parseInt(leadInfo.preferred_time);
-  recommended = availableSlots
-    .map(s => ({ ...s, diff: Math.abs(s.hour - preferredHour) }))
-    .sort((a, b) => a.diff - b.diff)
-    .slice(0, 3);
 }
 
 return [{
   json: {
-    lead_id: leadInfo.id,
-    available_slots: recommended.map(s => ({
-      start: s.start.toISOString(),
-      end: s.end.toISOString(),
-      display: s.start.toLocaleString('en-US', {
-        weekday: 'long',
-        month: 'short',
-        day: 'numeric',
-        hour: 'numeric',
-        minute: '2-digit',
-      }),
-    })),
-    has_availability: recommended.length > 0,
+    available_slots: availableSlots.slice(0, 3),
+    has_availability: availableSlots.length > 0,
   },
 }];
 ```
 
+`Book Trial Class` writes the earliest open slot to Google Calendar. It deliberately has **no** node-level retry, so a timeout can never create a duplicate event:
+
+```json
+{
+  "name": "Book Trial Class",
+  "operation": "create",
+  "start": "={{ $json.available_slots[0].start_iso }}",
+  "end": "={{ $json.available_slots[0].end_iso }}",
+  "additionalFields": {
+    "summary": "=Trial Class - {{ $('Update Pipeline Status').first().json.collected_info.name }}",
+    "description": "=Lead from {{ $('Update Pipeline Status').first().json.channel }}\\nGoals: {{ $('Update Pipeline Status').first().json.collected_info.goals }}\\nPhone: {{ $('Update Pipeline Status').first().json.collected_info.phone }}"
+  }
+}
+```
+
+`Save Lead Record` upserts the lead on `user_id`. Status becomes `Trial Booked` whenever the booking branch ran:
+
+```json
+{
+  "name": "Save Lead Record",
+  "operation": "appendOrUpdate",
+  "columns": {
+    "mappingMode": "defineBelow",
+    "value": {
+      "user_id": "={{ $('Update Pipeline Status').first().json.user_id }}",
+      "channel": "={{ $('Update Pipeline Status').first().json.channel }}",
+      "status": "={{ $('Book Trial Class').isExecuted ? 'Trial Booked' : $('Update Pipeline Status').first().json.new_status }}",
+      "name": "={{ $('Update Pipeline Status').first().json.collected_info?.name || '' }}",
+      "phone": "={{ $('Update Pipeline Status').first().json.collected_info?.phone || '' }}",
+      "goals": "={{ $('Update Pipeline Status').first().json.collected_info?.goals || '' }}",
+      "experience": "={{ $('Update Pipeline Status').first().json.collected_info?.experience || '' }}",
+      "preferred_time": "={{ $('Update Pipeline Status').first().json.collected_info?.preferred_time || '' }}",
+      "trial_start": "={{ $('Book Trial Class').isExecuted ? $('Book Trial Class').first().json.start.dateTime : '' }}",
+      "updated_at": "={{ $('Update Pipeline Status').first().json.updated_at }}"
+    },
+    "matchingColumns": [
+      "user_id"
+    ]
+  }
+}
+```
+
 ---
 
-## 4. No-show Recovery Sequencer
+## 4. No-show Recovery Sequencer — Production Component (not in `workflow.json`)
 
-When a lead misses their trial, automated re-engagement begins.
+The production follow-up agent re-engages leads who miss their trial. It is client-specific and not part of the export; it is shown because it produces the no-show recovery figures in [`PERFORMANCE.md`](./PERFORMANCE.md).
 
 ```javascript
-// n8n Code Node — No-show Recovery Sequence Builder
+// n8n Code Node — No-show Recovery Sequence Builder (production deployment)
 
 const noShow = $input.first().json;
 
@@ -283,8 +249,8 @@ return sequence.map(step => ({
 
 ## Design principles demonstrated
 
-1. **Stateful pipeline with explicit transitions** — clear state machine
-2. **Conversational qualification** — natural data collection vs forms
-3. **Capacity-aware booking** — class size limits respected
-4. **Multi-step recovery sequences** — re-engage rather than abandon
-5. **Cancellation triggers** — sequences stop when lead becomes member
+1. **Model reports, code decides** — the AI returns an intent; an explicit transition table sets the status
+2. **Conversational qualification** — natural data collection instead of forms, returned as structured JSON
+3. **Capacity-aware booking** — class limits enforced in code before anything is written
+4. **Idempotent records, non-retried writes** — leads upserted on `user_id`; the calendar write never retries
+5. **Recovery over abandonment** — multi-step re-engagement with cancellation triggers (production follow-up layer)

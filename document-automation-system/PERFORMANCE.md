@@ -9,7 +9,7 @@ Production metrics from processing construction specification PDFs.
 | Stage | Typical | P95 |
 |---|---|---|
 | PDF text extraction | 2-8 sec | 15 sec |
-| AI rule extraction (GPT-4o, JSON mode) | 5-15 sec | 30 sec |
+| AI rule extraction (gpt-4o, JSON mode) | 5-15 sec | 30 sec |
 | Calculation engine (deterministic) | <100 ms | 200 ms |
 | QA report generation | 50 ms | 100 ms |
 | Excel generation | 200 ms | 500 ms |
@@ -30,9 +30,9 @@ This is the metric that matters most:
 | Quantity extraction | 97% |
 | Percentage rule extraction | 94% |
 | Parent-child relationship detection | 88% |
-| Overall quality score >= 70% (auto-export) | 84% of runs |
+| Runs scoring ≥ 70% on the QA report | 84% |
 
-The 100% on calculations is the entire point of the "AI for language, code for math" principle. Code cannot get arithmetic wrong; only the inputs to code can be wrong.
+The 100% on calculations is the point of the "AI for language, code for math" principle: code does not get arithmetic wrong, so the remaining error budget sits entirely in extraction, which is what the QA layer measures.
 
 ---
 
@@ -53,24 +53,24 @@ For an agency processing 100 docs/month: ~$3-5/month in API costs. Replaces ~20-
 
 Distribution of quality scores from 1,200 processed documents:
 
-| Score range | % of runs | Auto-export? |
+| Score range | QA label | % of runs |
 |---|---|---|
-| 85-100% (excellent) | 62% | Yes |
-| 70-84% (good) | 22% | Yes |
-| 50-69% (fair) | 11% | No - human review |
-| <50% (poor) | 5% | No - human review |
+| 85-100% | excellent | 62% |
+| 70-84% | good | 22% |
+| 50-69% | fair | 11% |
+| <50% | poor | 5% |
 
-**84% auto-export rate** is the relevant operational number. 16% of documents need human attention, usually due to PDF formatting quirks.
+**84% of runs clear the 70% threshold.** The other 16% always go to human review, usually because of PDF formatting quirks. The gate is deliberately stricter than the score: auto-export also requires zero blocking warnings (percentage imbalance, duplicate item, invalid quantity), so a run above 70% that raises any warning is still routed to a reviewer.
 
 ---
 
 ## Reliability
 
 - **Processing success rate:** 98%
-- **Common failures:**
-  - PDF is scanned (image-only, no text layer) → routed to OCR pre-processing
-  - PDF is password-protected → flagged for operator
-  - PDF is malformed → logged, operator notified
+- **Common failures** (all surface through the shared error handler for operator follow-up):
+  - PDF is scanned (image-only, no text layer) → no extractable rules
+  - PDF is password-protected → text extraction fails
+  - PDF is malformed → extraction fails
 
 ---
 
@@ -82,10 +82,9 @@ In a 30-day comparison of automated vs manual processing for the same client:
 |---|---|---|
 | Duplicate item names | 100% | ~40% |
 | Unbalanced percentages (sums ≠ 100%) | 100% | ~50% |
-| Quantity conservation violations | 100% | ~30% |
-| Missing parent-child relationships | 100% | ~70% |
+| Quantity conservation violations | 100% (flagged per item) | ~30% |
 
-Humans get tired and skip checks. Code doesn't.
+These checks run on every item of every document; manual review applies them inconsistently under time pressure.
 
 ---
 
@@ -95,4 +94,4 @@ Humans get tired and skip checks. Code doesn't.
 - **Document size:** Practical limit ~50 pages (token budget)
 - **Items per document:** Tested to 500+, no degradation
 
-Beyond these limits, batching and queue mode would be needed.
+Beyond these limits, batching and n8n queue mode would be needed.

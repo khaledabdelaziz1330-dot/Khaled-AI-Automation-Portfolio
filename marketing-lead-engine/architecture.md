@@ -1,6 +1,6 @@
-# Architecture — Marketing Content Engine
+# Architecture — Marketing Content Pipeline
 
-Ethical content marketing automation. **Permission-based, not theft-based.** Every published post is approved by the original author.
+Ethical content marketing automation. **Permission-based, not theft-based.** The pipeline drafts a post and asks the original author for consent; it never publishes on its own.
 
 ---
 
@@ -11,162 +11,131 @@ flowchart LR
     A[RSS Feeds] --> B[Article Discovery]
     B --> C[AI Rewrite]
     C --> D[Permission Request]
-    D --> E[Author Response]
-    E -->|Approved| F[Auto-Publish]
-    E -->|Edit Requested| G[Human Review]
-    E -->|Rejected| H[Archive]
-    G --> F
-    F --> I[Tracking & Engagement]
+    D --> E[Request Log]
+    E -.->|hand-off| F[Reply handling and publishing - outside this workflow]
 ```
 
 ## Detailed component diagram
 
+Every box maps to a node in [`workflow.json`](workflow.json).
+
 ```mermaid
 flowchart TD
     subgraph Discovery [Discovery Layer]
-        RSS[RSS Feed Monitor]
-        DEDUP[Deduplication]
-        FILTER[Recency Filter]
+        TRIG[Every 6 Hours]
+        FEEDS[Get Active Feed URLs]
+        RSS[Read RSS Feed]
+        SEEN[Check If Already Seen]
+        FILTER[Filter New and Recent]
     end
-    
+
     subgraph AI [AI Processing]
-        REWRITE[Content Rewriter]
-        FACT_CHECK[Fact Preservation Check]
+        REWRITE[AI Rewrite - GPT-4o]
     end
-    
+
     subgraph Permission [Permission Layer]
-        EMAIL_GEN[Permission Email Composer]
-        SEND[Send to Author]
-        WATCH[Watch for Response]
-        PARSE[Response Parser]
+        EMAIL_GEN[Compose Permission Request]
+        SEND[Send Permission Email]
     end
-    
-    subgraph Publishing [Publishing]
-        SAFETY[Safety Checks]
-        LINKEDIN[LinkedIn Publisher]
-        LOG[Audit Log]
+
+    subgraph Tracking [Tracking]
+        LOG[Log Permission Request]
+        MARK[Mark as Seen]
     end
-    
-    RSS --> DEDUP
-    DEDUP --> FILTER
+
+    TRIG --> FEEDS
+    FEEDS --> RSS
+    RSS --> SEEN
+    SEEN --> FILTER
     FILTER --> REWRITE
-    REWRITE --> FACT_CHECK
-    FACT_CHECK --> EMAIL_GEN
+    REWRITE --> EMAIL_GEN
     EMAIL_GEN --> SEND
-    SEND --> WATCH
-    WATCH --> PARSE
-    PARSE --> SAFETY
-    SAFETY -->|Pass| LINKEDIN
-    LINKEDIN --> LOG
+    SEND --> LOG
+    SEND --> MARK
 ```
 
-## Sequence: from RSS to published post
+## Sequence: from RSS to permission request
 
 ```mermaid
 sequenceDiagram
     participant RSS
     participant n8n
-    participant OpenAI
-    participant Email
-    participant Author
-    participant LinkedIn
     participant Sheets
-    
-    RSS-->>n8n: New article detected
-    n8n->>n8n: Dedupe + recency check
-    n8n->>OpenAI: Rewrite as LinkedIn post
-    OpenAI-->>n8n: Rewritten content + facts preserved
+    participant OpenAI
+    participant Gmail
+    participant Author
+
+    n8n->>Sheets: Get active feed URLs
+    n8n->>RSS: Read each feed
+    RSS-->>n8n: Articles
+    n8n->>Sheets: Check URL in SeenArticles
+    n8n->>n8n: Keep new articles under 48 hours old
+    n8n->>OpenAI: Rewrite as LinkedIn post (JSON)
+    OpenAI-->>n8n: Draft + facts preserved + notes
     n8n->>n8n: Compose permission email
-    n8n->>Email: Send to author
-    Email-->>Author: Permission request
-    Author->>Email: Reply (approve/reject/edit)
-    Email-->>n8n: Parse response
-    n8n->>n8n: Detect intent
-    alt Approved
-        n8n->>n8n: Run safety checks
-        n8n->>LinkedIn: Publish post
-        LinkedIn-->>n8n: Post URL
-        n8n->>Sheets: Log success
-    else Rejected or unclear
-        n8n->>Sheets: Archive request
-    end
+    n8n->>Gmail: Send to author
+    Gmail-->>Author: Permission request with draft
+    n8n->>Sheets: Log request (pending_response, 7-day deadline)
+    n8n->>Sheets: Mark article as seen
 ```
 
 ## Ethical foundation
 
-This system was designed specifically to be different from "content scraping" tools that republish others' work without permission.
+This pipeline was designed to be different from "content scraping" tools that republish others' work without permission.
 
 **Standard content automation:**
 - Scrapes articles
 - Rewrites with AI
 - Publishes as if original
-- Hopes original author doesn't notice
+- Hopes the original author doesn't notice
 
-**This system:**
+**This pipeline:**
 - Discovers articles
-- Rewrites with AI
-- **Asks the author for permission**
-- Only publishes with explicit approval
-- Always credits the original
-- Authors often appreciate being asked
+- Rewrites with AI, preserving the original facts
+- **Asks the author for permission, with the full draft attached**
+- Always credits and links the original
+- Publishes nothing automatically
 
-**Result:** Better content relationships, no legal/ethical risk, and authors often share the rewrites themselves, multiplying reach.
+**Result:** content relationships built on consent, and a clear record of every request.
 
-## Permission flow detail
+## Permission request lifecycle
+
+States set by this workflow, and where the hand-off happens:
 
 ```mermaid
 stateDiagram-v2
     [*] --> Discovered
+    Discovered --> Skipped: Already seen or older than 48h
     Discovered --> Rewritten
-    Rewritten --> PermissionPending
-    PermissionPending --> AuthorReplied: Within 7 days
-    PermissionPending --> AutoArchived: After 7 days no response
-    AuthorReplied --> Approved
-    AuthorReplied --> EditRequested
-    AuthorReplied --> Rejected
-    AuthorReplied --> Unclear: Needs human review
-    Approved --> Published
-    EditRequested --> HumanEdit
-    HumanEdit --> Approved: After human edit
-    Unclear --> HumanReview
-    HumanReview --> Approved: If reviewer approves
-    HumanReview --> Rejected: If reviewer declines
-    Rejected --> Archived
-    Published --> [*]
-    AutoArchived --> [*]
-    Archived --> [*]
+    Rewritten --> PermissionPending: Email sent, logged as pending_response
+    PermissionPending --> HandOff: Reply or 7-day deadline
+    HandOff --> [*]
+    Skipped --> [*]
 ```
 
-## Safety check layer
+`HandOff` is outside this workflow: replies land in Gmail and are actioned from the PermissionRequests sheet.
 
-Before any post is published, 5 safety checks run:
+## Guardrails
 
-1. **Has approval record** — explicit permission_request_id exists
-2. **Status is approved** — detected_intent === 'approved'
-3. **Not already published** — no prior publish for this article
-4. **No human review flag** — automatic intent detection was confident
-5. **Within freshness window** — article < 30 days old
+Built into the exported workflow:
 
-**ALL must pass.** If any fails, the post is skipped and logged.
+1. **Dedup before spend** — SeenArticles lookup runs before the AI call, so no article is rewritten or pitched twice
+2. **Freshness and completeness** — articles must be under 48 hours old and have a title and snippet
+3. **Constrained rewrite** — the prompt forbids new facts and impersonation and requires a source line
+4. **Structured output** — JSON response mode; the composer parses `linkedin_post` and `facts_preserved`
+5. **Consent before sharing** — the only outbound action is the permission email
 
 ## Tracking layer
 
-Every step is logged with timestamps:
-
-| Event | Tracked data |
+| Sheet | Tracked data |
 |---|---|
-| Article discovered | URL, source feed, discovery time |
-| Rewrite generated | Original + new + facts preserved |
-| Permission requested | Author, email sent, deadline |
-| Response received | Time, intent detected, raw response |
-| Published | LinkedIn URL, audience reached |
-| Engagement | Likes, comments, shares over 30 days |
+| **ActiveFeeds** | Feed URLs and `active` flag (input) |
+| **SeenArticles** | URL, title, `discovered_at` |
+| **PermissionRequests** | Request ID, article ID / URL / title / author, inferred author email, subject, body, proposed post, facts preserved, `status: pending_response`, `sent_at`, `response_deadline` |
 
 ## Performance characteristics
 
-- **Articles processed per day:** 50-200 (across multiple feeds)
-- **Permission request response rate:** ~25%
-- **Approval rate among responders:** ~80%
-- **Final publish rate:** ~20% of discovered articles
-- **Author satisfaction:** High (qualitative — authors often share the rewrites)
-- **Legal risk:** Eliminated by permission requirement
+- **Cadence:** every 6 hours, 48-hour freshness window
+- **Per-article cost:** ~$0.05-0.10 in GPT-4o spend; ~30 seconds per rewrite
+- **Outbound actions:** one permission email per new article; nothing is published automatically
+- **Details and limits:** see [PERFORMANCE.md](PERFORMANCE.md)

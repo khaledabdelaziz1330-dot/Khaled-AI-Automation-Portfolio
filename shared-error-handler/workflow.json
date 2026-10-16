@@ -1,0 +1,204 @@
+{
+  "name": "Shared Error Handler - Sanitized Logging & Alerting",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Shared Error Handler\n\nEvery workflow in this portfolio sets **Settings → Error workflow** to this workflow (`errorWorkflow` in each workflow.json).\n\n1. **Error Trigger** fires on any failed execution\n2. **Sanitize & Classify** redacts secrets and PII, assigns severity\n3. **Log Error** appends every failure to the Errors sheet (audit trail)\n4. **High severity?** pages the team in Slack; low/medium are log-only\n\nNode-level retries (3 tries, 2 s apart) absorb transient API failures before this workflow is ever triggered.",
+        "height": 380,
+        "width": 420,
+        "color": 6
+      },
+      "id": "7028813c-1628-4759-a538-a5ce02bdbaad",
+      "name": "📘 Overview",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -520,
+        -160
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "5f071c55-5a8b-491d-a92b-2074aeaab4fa",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Sanitize and classify an n8n execution error before it is logged or alerted.\n// Runs once per failed execution (input comes from the Error Trigger).\nconst err = $input.first().json;\n\nconst SENSITIVE_KEYS = /(api[_-]?key|authorization|bearer|password|passwd|secret|token|cookie|session|signature)/i;\nconst PATTERNS = [\n  [/Bearer\\s+[A-Za-z0-9._\\-]+/g, 'Bearer [REDACTED]'],\n  [/sk-[A-Za-z0-9_\\-]{12,}/g, '[REDACTED_KEY]'],\n  [/[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}/g, '[EMAIL]'],\n  [/\\+?\\d[\\d\\s\\-()]{8,}\\d/g, '[PHONE]'],\n];\n\nfunction scrubString(s) {\n  return PATTERNS.reduce((out, [re, rep]) => out.replace(re, rep), s);\n}\n\nfunction sanitize(value, depth = 0) {\n  if (depth > 8) return '[TRUNCATED]';\n  if (typeof value === 'string') return scrubString(value).slice(0, 2000);\n  if (Array.isArray(value)) return value.slice(0, 50).map(v => sanitize(v, depth + 1));\n  if (value && typeof value === 'object') {\n    const out = {};\n    for (const [k, v] of Object.entries(value)) {\n      out[k] = SENSITIVE_KEYS.test(k) ? '[REDACTED]' : sanitize(v, depth + 1);\n    }\n    return out;\n  }\n  return value;\n}\n\nconst message = scrubString(String(err.execution?.error?.message || 'Unknown error'));\nconst node = err.execution?.lastNodeExecuted || 'unknown';\n\n// Severity: customer-facing or data-loss risks page someone; transient issues are logged only.\nconst HIGH = /(webhook|whatsapp|messenger|telegram|send|calendar|book|payment|unauthori[sz]ed|401|403)/i;\nconst LOW = /(rate.?limit|429|timeout|ETIMEDOUT|ECONNRESET|socket hang up)/i;\nconst haystack = `${node} ${message}`;\nconst severity = HIGH.test(haystack) ? 'high' : LOW.test(haystack) ? 'low' : 'medium';\n\nreturn [{\n  json: {\n    occurred_at: new Date().toISOString(),\n    severity,\n    workflow_id: err.workflow?.id || null,\n    workflow_name: err.workflow?.name || 'unknown',\n    failed_node: node,\n    error_message: message,\n    execution_id: err.execution?.id || null,\n    execution_url: err.execution?.url || null,\n    retry_of: err.execution?.retryOf || null,\n    context: sanitize(err.execution?.error || {}),\n  },\n}];"
+      },
+      "id": "2996086d-a07c-4129-817b-3003340d26b7",
+      "name": "Sanitize & Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.ERRORS_LOG_SHEET_ID }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Errors"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {}
+        },
+        "options": {}
+      },
+      "id": "87d21331-5435-48a5-83ff-63f010c424bd",
+      "name": "Log Error",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        480,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "REPLACE_SHEETS_CREDENTIAL_ID",
+          "name": "Google Sheets - Errors"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "leftValue": "={{ $('Sanitize & Classify').item.json.severity }}",
+              "rightValue": "high",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "id": "8afad874-3bed-44b5-bf36-12823b190f00",
+      "name": "High Severity?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "select": "channel",
+        "channelId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $env.SLACK_ERROR_CHANNEL }}"
+        },
+        "text": "=:rotating_light: *{{ $('Sanitize & Classify').item.json.workflow_name }}* failed at *{{ $('Sanitize & Classify').item.json.failed_node }}*\n>{{ $('Sanitize & Classify').item.json.error_message }}\nExecution: {{ $('Sanitize & Classify').item.json.execution_url || $('Sanitize & Classify').item.json.execution_id }}",
+        "otherOptions": {}
+      },
+      "id": "cb156342-04c8-45e7-9466-6316f9e55fa0",
+      "name": "Alert Team (Slack)",
+      "type": "n8n-nodes-base.slack",
+      "typeVersion": 2.2,
+      "position": [
+        960,
+        -100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "credentials": {
+        "slackApi": {
+          "id": "REPLACE_SLACK_CREDENTIAL_ID",
+          "name": "Slack - Alerts"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sanitize & Classify",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sanitize & Classify": {
+      "main": [
+        [
+          {
+            "node": "Log Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Log Error": {
+      "main": [
+        [
+          {
+            "node": "High Severity?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "High Severity?": {
+      "main": [
+        [
+          {
+            "node": "Alert Team (Slack)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "v1.0.0-error-handler",
+  "id": "shared-error-handler-v1",
+  "tags": [
+    {
+      "name": "observability",
+      "id": "tag-observability"
+    },
+    {
+      "name": "production",
+      "id": "tag-production"
+    }
+  ]
+}

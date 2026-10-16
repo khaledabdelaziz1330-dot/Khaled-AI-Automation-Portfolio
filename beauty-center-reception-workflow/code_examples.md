@@ -1,56 +1,40 @@
 # Code Examples — Beauty Center AI Reception
 
-Production code from the multi-service beauty center receptionist. Handles service matching, specialist booking, preference tracking, and multi-branch routing.
+JavaScript, prompts and node configuration taken directly from [`workflow.json`](./workflow.json): service matching, specialist booking with conflict checks, and the client record that personalizes the next visit. Section 5 shows a production component that is not part of the export.
 
 ---
 
 ## 1. Service Matching from Natural Language
 
-Match user requests to actual services in the catalog, even with informal language.
+Matches informal requests to the services catalog with deterministic keyword scoring — no model call.
 
 ```javascript
 // n8n Code Node — Service Matcher
+// Fuzzy service matching from user message
+const userMsg = $('Normalize Message').first().json.message_text.toLowerCase();
+const services = $('Get Services Catalog').all().map(s => s.json);
 
-const userMessage = $('Normalize Message').first().json.message_text.toLowerCase();
-const services = $('Get Services Catalog').all();
-
-// Build keyword index from services
-const serviceIndex = services.map((s) => {
+function scoreService(service) {
   const keywords = [
-    s.json.service_name.toLowerCase(),
-    ...(s.json.alternate_names || '').toLowerCase().split(',').map((n) => n.trim()),
-    ...(s.json.keywords || '').toLowerCase().split(',').map((k) => k.trim()),
+    service.service_name?.toLowerCase(),
+    ...(service.alternate_names || '').toLowerCase().split(',').map(s => s.trim()),
+    ...(service.keywords || '').toLowerCase().split(',').map(s => s.trim()),
   ].filter(Boolean);
   
-  return {
-    service_id: s.json.id,
-    service_name: s.json.service_name,
-    duration_minutes: s.json.duration_minutes,
-    price: s.json.price,
-    specialist_required: s.json.specialist_required,
-    keywords,
-  };
-});
-
-// Score each service based on keyword matches
-function scoreService(service, message) {
   let score = 0;
-  let matchedKeywords = [];
-  
-  service.keywords.forEach((kw) => {
-    if (message.includes(kw)) {
-      // Longer matches score higher (less likely false positive)
+  let matched = [];
+  keywords.forEach(kw => {
+    if (userMsg.includes(kw)) {
       score += kw.length;
-      matchedKeywords.push(kw);
+      matched.push(kw);
     }
   });
-  
-  return { service, score, matchedKeywords };
+  return { service, score, matchedKeywords: matched };
 }
 
-const matches = serviceIndex
-  .map((s) => scoreService(s, userMessage))
-  .filter((m) => m.score > 0)
+const matches = services
+  .map(scoreService)
+  .filter(m => m.score > 0)
   .sort((a, b) => b.score - a.score)
   .slice(0, 3);
 
@@ -58,9 +42,8 @@ const isAmbiguous = matches.length > 1 && matches[1].score >= matches[0].score *
 
 return [{
   json: {
-    user_message: userMessage,
     top_match: matches[0]?.service || null,
-    alternative_matches: matches.slice(1).map((m) => m.service),
+    alternative_matches: matches.slice(1).map(m => m.service),
     is_ambiguous: isAmbiguous,
     needs_clarification: !matches[0] || isAmbiguous,
   },
@@ -69,173 +52,181 @@ return [{
 
 ---
 
-## 2. Specialist Matching with Availability
+## 2. AI Conversation Manager — OpenAI Node (gpt-4o)
 
-Find the right specialist for the service AND check their calendar.
+Receives the matched service, the ambiguity flag and the client record; returns the reply and a structured booking intent as JSON (temperature 0.5, `json_object` response format).
+
+**System prompt:**
+
+```text
+You are a warm receptionist at a beauty center. Reply in the same language as the user (Arabic, English, or mix).
+
+Using the matched service and the client's history, write a natural reply that:
+- Confirms what service they want
+- Asks for preferred date/time if not clear
+- If client has a preferred specialist from past visits, offer them first
+- Mentions multi-branch options only if client is new
+- Brief, warm, professional
+
+Return JSON:
+{
+  "reply_to_user": "...",
+  "booking_ready": <boolean>,
+  "requested_service": "...",
+  "requested_specialist": "...",
+  "requested_date": "YYYY-MM-DD or null",
+  "requested_time": "HH:MM or null"
+}
+```
+
+**User message (n8n expression):**
+
+```text
+Service matched: {{ JSON.stringify($('Service Matcher').first().json.top_match) }}
+Is ambiguous: {{ $('Service Matcher').first().json.is_ambiguous }}
+Client preferences: {{ JSON.stringify($('Get Client (with Preferences)').first()?.json || {}) }}
+
+User message: {{ $('Normalize Message').first().json.message_text }}
+```
+
+---
+
+## 3. Specialist Matching with Availability
+
+Filters qualified specialists, puts the client's preferred specialist first, and generates conflict-free slots. The model's output decides only *whether* to book; code decides *who* and *when*.
 
 ```javascript
 // n8n Code Node — Specialist Match + Availability
+// Specialist matching + availability check
+const aiResult = JSON.parse($('AI Conversation Manager').first().json.message.content);
+const service = $('Service Matcher').first().json.top_match;
+const specialists = $('Get Specialists').all().map(s => s.json);
+const events = $input.all().map(e => e.json);
+const client = $('Get Client (with Preferences)').first()?.json || {};
 
-const service = $('Service Match').first().json.top_match;
-const requestedDate = $('Booking Details').first().json.preferred_date;
-const specialists = $('Get Specialists').all();
-const calendarEvents = $('Get All Calendar Events').all();
-
-// Filter specialists who can perform this service
-const qualifiedSpecialists = specialists.filter((s) => {
-  const services = (s.json.qualified_services || '').split(',').map((x) => x.trim());
-  return services.includes(service.service_id) || services.includes('all');
-});
-
-if (qualifiedSpecialists.length === 0) {
-  return [{
-    json: {
-      error: 'no_qualified_specialist',
-      message: `No specialist available for ${service.service_name}`,
-    },
-  }];
+if (!aiResult.booking_ready || !service) {
+  return [{ json: { skip_booking: true, reply: aiResult.reply_to_user } }];
 }
 
-// Check each specialist's availability on the requested date
-function getAvailableSlots(specialist, date, duration) {
-  const specialistEvents = calendarEvents.filter(
-    (e) => e.json.calendarId === specialist.json.calendar_id
-  );
-  
-  const dayStart = new Date(date);
-  dayStart.setHours(parseInt(specialist.json.shift_start || 9), 0, 0, 0);
-  const dayEnd = new Date(date);
-  dayEnd.setHours(parseInt(specialist.json.shift_end || 19), 0, 0, 0);
-  
+// Filter specialists qualified for this service
+const qualified = specialists.filter(sp => {
+  const services = (sp.qualified_services || '').split(',').map(x => x.trim());
+  return services.includes(service.id) || services.includes('all');
+});
+
+// Prioritize client's preferred specialist if available
+const preferredId = client.preferred_specialist;
+const preferred = qualified.find(sp => sp.id === preferredId);
+const orderedSpecialists = preferred ? [preferred, ...qualified.filter(sp => sp.id !== preferredId)] : qualified;
+
+const DURATION = service.duration_minutes || 60;
+
+function getAvailableSlots(specialist) {
   const slots = [];
-  for (let t = dayStart.getTime(); t < dayEnd.getTime() - duration * 60000; t += 30 * 60000) {
-    const slotStart = new Date(t);
-    const slotEnd = new Date(t + duration * 60000);
+  const now = new Date();
+  const requestedDate = aiResult.requested_date ? new Date(aiResult.requested_date) : new Date(now.getTime() + 86400000);
+  
+  for (let dayOffset = 0; dayOffset < 7; dayOffset++) {
+    const checkDate = new Date(requestedDate.getTime() + dayOffset * 86400000);
+    const dayStart = parseInt(specialist.shift_start || 10);
+    const dayEnd = parseInt(specialist.shift_end || 19);
     
-    const conflict = specialistEvents.some((e) => {
-      const eventStart = new Date(e.json.start.dateTime).getTime();
-      const eventEnd = new Date(e.json.end.dateTime).getTime();
-      return slotStart.getTime() < eventEnd && slotEnd.getTime() > eventStart;
-    });
-    
-    if (!conflict && slotStart > new Date()) {
-      slots.push({ start: slotStart, end: slotEnd });
+    for (let hour = dayStart; hour < dayEnd - (DURATION / 60); hour++) {
+      for (let min = 0; min < 60; min += 30) {
+        const slotStart = new Date(checkDate);
+        slotStart.setHours(hour, min, 0, 0);
+        if (slotStart < new Date(now.getTime() + 30 * 60 * 1000)) continue;
+        
+        const slotEnd = new Date(slotStart.getTime() + DURATION * 60 * 1000);
+        
+        const conflict = events.some(e => {
+          if (e.calendarId && e.calendarId !== specialist.calendar_id) return false;
+          const eventStart = new Date(e.start.dateTime).getTime();
+          const eventEnd = new Date(e.end.dateTime).getTime();
+          return slotStart.getTime() < eventEnd && slotEnd.getTime() > eventStart;
+        });
+        
+        if (!conflict) {
+          slots.push({
+            start_iso: slotStart.toISOString(),
+            end_iso: slotEnd.toISOString(),
+            display: slotStart.toLocaleString('en-US', { weekday: 'long', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit', hour12: true }),
+          });
+          if (slots.length >= 3) return slots;
+        }
+      }
     }
   }
   return slots;
 }
 
-const specialistAvailability = qualifiedSpecialists.map((sp) => ({
-  specialist: {
-    id: sp.json.id,
-    name: sp.json.name,
-    specialties: sp.json.specialties,
-    rating: sp.json.rating,
-  },
-  available_slots: getAvailableSlots(sp, requestedDate, service.duration_minutes),
-}));
-
-// Sort by rating, then by availability count
-specialistAvailability.sort((a, b) => {
-  if (b.specialist.rating !== a.specialist.rating) {
-    return b.specialist.rating - a.specialist.rating;
-  }
-  return b.available_slots.length - a.available_slots.length;
-});
+const withAvailability = orderedSpecialists.map(sp => ({
+  specialist: { id: sp.id, name: sp.name, rating: sp.rating },
+  available_slots: getAvailableSlots(sp),
+})).filter(x => x.available_slots.length > 0);
 
 return [{
   json: {
-    service: service.service_name,
-    specialists_with_availability: specialistAvailability.filter((s) => s.available_slots.length > 0),
-    top_recommendation: specialistAvailability[0],
+    skip_booking: withAvailability.length === 0,
+    recommended: withAvailability[0] || null,
+    alternatives: withAvailability.slice(1, 3),
+    reply: aiResult.reply_to_user,
   },
 }];
 ```
 
 ---
 
-## 3. Client Preference Tracking
+## 4. Booking and Client Record
 
-Track each client's history so future visits feel personal.
+`Create Booking` writes the first slot of the recommended specialist. It deliberately has **no** node-level retry, so a timeout can never create a duplicate appointment:
 
-```javascript
-// n8n Code Node — Update Client Preferences
-
-const clientId = $('Get Client').first().json.client_id;
-const completedBooking = $('Confirmed Booking').first().json;
-const existingPrefs = $('Get Client Preferences').first().json || {};
-
-const updatedPrefs = {
-  client_id: clientId,
-  last_updated: new Date().toISOString(),
-  
-  preferred_specialist: completedBooking.specialist_id, // most recent
-  
-  preferred_specialists_list: addToFrequencyList(
-    existingPrefs.preferred_specialists_list || [],
-    completedBooking.specialist_id
-  ),
-  
-  preferred_services: addToFrequencyList(
-    existingPrefs.preferred_services || [],
-    completedBooking.service_id
-  ),
-  
-  preferred_time_pattern: addTimePattern(
-    existingPrefs.preferred_time_pattern || {},
-    completedBooking.start_datetime
-  ),
-  
-  preferred_branch: completedBooking.branch_id,
-  
-  total_visits: (existingPrefs.total_visits || 0) + 1,
-  
-  last_visit_date: completedBooking.start_datetime,
-  
-  visit_history: [
-    ...(existingPrefs.visit_history || []).slice(-9), // keep last 10
-    {
-      date: completedBooking.start_datetime,
-      service: completedBooking.service_name,
-      specialist: completedBooking.specialist_name,
-      branch: completedBooking.branch_name,
-    },
-  ],
-};
-
-function addToFrequencyList(list, item) {
-  const existing = list.find((i) => i.id === item);
-  if (existing) {
-    existing.count++;
-    existing.last_used = new Date().toISOString();
-  } else {
-    list.push({ id: item, count: 1, last_used: new Date().toISOString() });
+```json
+{
+  "name": "Create Booking",
+  "operation": "create",
+  "start": "={{ $json.recommended.available_slots[0].start_iso }}",
+  "end": "={{ $json.recommended.available_slots[0].end_iso }}",
+  "additionalFields": {
+    "summary": "={{ $('Service Matcher').first().json.top_match.service_name }} - {{ $('Get Client (with Preferences)').first()?.json?.name || 'New Client' }}",
+    "description": "=Specialist: {{ $json.recommended.specialist.name }}\\nChannel: {{ $('Normalize Message').first().json.channel }}"
   }
-  return list.sort((a, b) => b.count - a.count).slice(0, 5);
 }
+```
 
-function addTimePattern(existing, datetime) {
-  const date = new Date(datetime);
-  const dayOfWeek = date.getDay();
-  const hour = date.getHours();
-  
-  const key = `${dayOfWeek}_${hour}`;
-  existing[key] = (existing[key] || 0) + 1;
-  
-  return existing;
+`Update Client Preferences` upserts the client on `user_id`. The booked specialist becomes `preferred_specialist`, which `Specialist Match + Availability` offers first on the next visit:
+
+```json
+{
+  "name": "Update Client Preferences",
+  "operation": "appendOrUpdate",
+  "columns": {
+    "mappingMode": "defineBelow",
+    "value": {
+      "user_id": "={{ $('Normalize Message').first().json.user_id }}",
+      "name": "={{ $('Get Client (with Preferences)').first()?.json?.name || $('Normalize Message').first().json.user_name || '' }}",
+      "channel": "={{ $('Normalize Message').first().json.channel }}",
+      "preferred_specialist": "={{ $('Specialist Match + Availability').first().json.recommended.specialist.id }}",
+      "last_service": "={{ $('Service Matcher').first().json.top_match.service_name }}",
+      "last_booking_start": "={{ $json.start.dateTime }}",
+      "total_bookings": "={{ Number($('Get Client (with Preferences)').first()?.json?.total_bookings || 0) + 1 }}",
+      "updated_at": "={{ $now.toISO() }}"
+    },
+    "matchingColumns": [
+      "user_id"
+    ]
+  }
 }
-
-return [{ json: updatedPrefs }];
 ```
 
 ---
 
-## 4. Smart Follow-up Scheduler
+## 5. Smart Follow-up Scheduler — Production Component (not in `workflow.json`)
 
-Different services have different follow-up cadences (haircut every 4 weeks, facial every 6 weeks, etc.)
+The production follow-up agent schedules post-visit and rebook messages at service-specific intervals (haircut every 4 weeks, facial every 6, etc.). It is client-specific and not part of the export; it is shown because it produces the follow-up figures in [`PERFORMANCE.md`](./PERFORMANCE.md).
 
 ```javascript
-// n8n Code Node — Follow-up Scheduler
+// n8n Code Node — Follow-up Scheduler (production deployment)
 
 const completedBooking = $input.first().json;
 const serviceFollowupRules = {
@@ -251,10 +242,9 @@ const serviceFollowupRules = {
 const rule = serviceFollowupRules[completedBooking.service_category] || { days: 30, message_template: 'general_followup' };
 const followupDate = new Date(new Date(completedBooking.end_datetime).getTime() + rule.days * 86400000);
 
-// Check if client is "active" (visited within last 90 days)
+// Returning clients get gentle reminders, new clients get more touchpoints
 const isActiveClient = completedBooking.client_total_visits > 1;
 
-// Active clients get gentle reminders, new clients get more touchpoints
 const scheduledMessages = [];
 
 // Post-visit thank you (2 hours after)
@@ -291,8 +281,8 @@ return scheduledMessages.map((m) => ({ json: { ...m, client_id: completedBooking
 
 ## Design principles demonstrated
 
-1. **Fuzzy service matching** — handles informal language and multiple aliases
-2. **Multi-criteria specialist selection** — qualification + availability + rating
-3. **Preference accumulation over time** — every visit refines the model
-4. **Service-aware follow-up cadence** — different timing per service type
-5. **Active vs new client differentiation** — different touch patterns
+1. **Deterministic matching** — informal language and aliases scored in code, ambiguity flagged rather than guessed
+2. **Model decides intent, code decides the booking** — qualification, preference order and conflict checks are all code
+3. **Preference carried forward** — each booking sets the specialist offered first next time
+4. **Idempotent records, non-retried writes** — clients upserted on `user_id`; the calendar write never retries
+5. **Service-aware follow-up cadence** — different timing per service type (production follow-up layer)

@@ -1,65 +1,72 @@
-# Smart Marketing Lead Engine
+# Marketing Content Pipeline
 
-Automation system that turns newly published articles into permission-based social posts and warm leads
-(RSS Feeds · AI Content Generation · Author Permission · Auto-Publishing)
+Automation that turns newly published articles into permission-based LinkedIn post drafts and sends each original author a consent request before anything is shared
+(RSS Feeds · AI Content Generation · Author Permission · Audit Logging)
+
+**Status:** Working n8n build. The exported workflow covers discovery → AI rewrite → author permission request; author replies and publishing happen outside this export.
 
 ---
 
-![marketing lead engine workflow](marketing-lead-engine-workflow.png)
+![marketing content pipeline workflow](marketing-lead-engine-workflow.png)
+
+> The canvas above is from the original build, which also prototyped approval-gated publishing (wait-for-reply, image generation, LinkedIn/X posting). Those stages are **not** part of the exported [`workflow.json`](workflow.json), which is the reference implementation documented here.
 
 ---
 
 ## Workflow Architecture
 
 ```
-Schedule Trigger ──→ Fetch RSS / API articles
-  → Check duplicates (URL in Google Sheets)
-    → AI rewrite (OpenAI) ──→ LinkedIn post draft + Email pitch
-      → Save drafts to Google Sheets
-        → Send permission email to author
-          → If YES → Auto-publish to LinkedIn + log
-          → If NO  → Archive + log
+Schedule Trigger (every 6 hours)
+  → Get active feed URLs (Google Sheets: ActiveFeeds)
+    → Read RSS feed
+      → Check if already seen (Google Sheets: SeenArticles)
+        → Filter new & recent (< 48 hours, title + snippet required)
+          → AI rewrite (OpenAI GPT-4o, JSON output) → LinkedIn post draft
+            → Compose permission request email (draft included)
+              → Send via Gmail
+                → Log request (PermissionRequests: pending_response, 7-day deadline)
+                → Mark article as seen (SeenArticles)
 
-Error Monitor ──→ Log failures + Alert team
+Failures → workflow-level Error Workflow setting
 ```
 
 ---
 
 ## What This System Does
 
-An automation system for marketing agencies that monitors content sources, generates AI-assisted social posts, and handles ethical outreach — all with author permission and full tracking.
+A permission-first content pipeline for marketing teams: it monitors curated sources, drafts AI-assisted LinkedIn posts that preserve the original facts, and asks each author for consent before anything is shared, with every request logged.
 
-- Pulls latest articles from RSS feeds and APIs on a schedule
-- Uses AI to rewrite content into LinkedIn-style posts and email pitches
-- Sends permission requests to original authors before publishing
-- Auto-publishes approved content to social channels
-- Tracks the full lifecycle: draft → permission → approved → published
+- Pulls the latest articles from a sheet-managed list of RSS feeds on a schedule
+- Uses AI to rewrite each article into a LinkedIn-style post draft that credits and links the original
+- Emails the original author with the draft and asks for permission to share it
+- Logs every request with its draft, the facts preserved, status, and response deadline
+- Publishes nothing on its own: the PermissionRequests sheet is the hand-off point for replies and publishing
 
 ---
 
 ## How It Works
 
 1. **Fetch new articles**
-   - Pulls latest articles from RSS / APIs on a schedule
-   - Skips duplicates based on URL in Google Sheets
+   - Reads active feed URLs from the ActiveFeeds sheet every 6 hours
+   - Skips articles whose URL is already in SeenArticles
+   - Keeps only articles published in the last 48 hours that have a title and content snippet
 
-2. **Generate draft content**
-   - Uses AI to rewrite the article into 1–2 LinkedIn-style posts
-   - Creates a short email pitch summarizing the article
-   - Saves drafts + metadata in Google Sheets
+2. **Generate the draft**
+   - GPT-4o rewrites the article into one LinkedIn-style post (max 300 words, hook-first)
+   - The prompt forbids new facts and impersonating the author, and requires a source line crediting the original
+   - Output is structured JSON: the post, the list of facts preserved, and rewrite notes
 
-3. **Ask author for permission**
-   - Sends a polite email to the original author
-   - Shares the draft post and asks for clear YES / NO to publish and tag them
-   - Updates status: pending / approved / declined / no response
+3. **Ask the author for permission**
+   - Infers a best-effort author address (`firstname.lastname@domain`, or `editor@domain` when the author is unknown)
+   - Sends a short email via Gmail with the full draft, asking whether the author is comfortable with it being shared, or would like edits
+   - Logs the request as `pending_response` with a 7-day response deadline
 
-4. **Auto-publishing**
-   - If approved → posts automatically to LinkedIn / selected channels
-   - Stores published_at + post URL for tracking
+4. **Track**
+   - Every request is appended to PermissionRequests; every processed article is marked in SeenArticles
+   - Replies arrive in the Gmail inbox and are actioned from the PermissionRequests sheet
 
-5. **Monitoring & errors**
-   - Logs failures (API, email, etc.) to a Log sheet
-   - Sends alerts on critical errors so flows can be fixed quickly
+5. **Errors**
+   - The workflow's Error Workflow setting routes failed executions to a dedicated error handler
 
 ---
 
@@ -68,23 +75,23 @@ An automation system for marketing agencies that monitors content sources, gener
 | Layer | Tools |
 |---|---|
 | **Orchestration** | n8n (self-hosted on VPS) |
-| **AI** | OpenAI (rewriting & summarizing) |
-| **Data** | Google Sheets (content queue & status tracking) |
-| **Email** | Gmail / SMTP (author outreach) |
-| **Publishing** | LinkedIn / social APIs |
+| **AI** | OpenAI GPT-4o (rewriting, JSON output mode) |
+| **Data** | Google Sheets (ActiveFeeds, SeenArticles, PermissionRequests) |
+| **Sources** | RSS feeds |
+| **Email** | Gmail (author outreach) |
 
 ---
 
 ## Impact
 
-- Builds a **consistent content pipeline** without constant manual writing
-- Keeps outreach **ethical & permission-based** (no content theft)
-- Gives agencies a clear history of who approved what, where it was posted, and what's still pending
+- Turns a curated feed list into **fact-preserving, credited LinkedIn drafts** without manual writing
+- Keeps outreach **ethical and permission-based**: no post is shared without first asking the author
+- Gives teams an **auditable record** of what was drafted, who was asked, and what is still pending
 
 ---
 
 ## Notes
 
-- This project demonstrates real-world marketing automation with approvals, logging, and monitoring
-- The permission-based approach ensures compliance and builds genuine relationships with content creators
-- Fully configurable: RSS sources, post templates, and publishing channels can be changed per campaign
+- Demonstrates marketing automation built around consent, logging, and clear hand-off points
+- Fully configurable: feeds are managed in a sheet, and the rewrite prompt and email template live in single nodes
+- Known limits are documented in [PERFORMANCE.md](PERFORMANCE.md)

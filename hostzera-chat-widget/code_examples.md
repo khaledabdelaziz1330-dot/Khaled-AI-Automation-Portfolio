@@ -1,48 +1,66 @@
 # Code Examples — Hostzera AI Chat Widget
 
-Production JavaScript code samples from the retrieval-grounded chat widget. Designed for zero hallucination by retrieving answers from a verified knowledge base before any LLM call.
+Production JavaScript from the retrieval-grounded chat widget, taken verbatim from the Code and HTTP Request nodes in [`workflow.json`](workflow.json). The design goal: retrieve verified knowledge-base data before any LLM call, and make that data the only context the model is allowed to use.
 
 ---
 
-## 1. Knowledge Base Retrieval (Google Sheets)
+## 1. Knowledge Base Retrieval & Scoring
 
-The first step of every conversation: pull the relevant product/service data from Google Sheets. This becomes the only context the AI is allowed to use.
+Node: **KB Retrieval & Scoring** (Code). Runs after **Get Knowledge Base** loads all rows where `active = TRUE`. Longer token matches carry more weight, an exact product-name match doubles the score, and only the top 5 rows become context.
 
 ```javascript
-// n8n Code Node — Knowledge Base Retrieval
-// Input: user message
-// Output: relevant Sheet rows formatted as context
+// KB retrieval - keyword scoring against user message
+// Returns top 5 most relevant rows
 
-const userMessage = $('Webhook').first().json.message.toLowerCase();
-const allKnowledge = $('Get Knowledge Base').all();
+const userMessage = $('Validate Request').item.json.message.toLowerCase();
+const kbRows = $('Get Knowledge Base').all();
 
-// Keyword-based retrieval (simple but effective for structured KB)
-const keywords = userMessage
-  .replace(/[^\w\s؀-ۿ]/g, ' ') // Keep Latin + Arabic
+const messageTokens = userMessage
+  .replace(/[^\w\s\u0600-\u06FF]/g, ' ')
   .split(/\s+/)
-  .filter((w) => w.length > 2);
+  .filter(t => t.length > 2);
 
-function scoreRow(row, keywords) {
-  const searchable = `${row.json.product || ''} ${row.json.description || ''} ${row.json.tags || ''}`.toLowerCase();
-  return keywords.reduce((score, kw) => score + (searchable.includes(kw) ? 1 : 0), 0);
+function scoreRow(row) {
+  const searchable = [
+    row.json.product || '',
+    row.json.description || '',
+    row.json.tags || '',
+    row.json.alternate_names || '',
+  ].join(' ').toLowerCase();
+  
+  let score = 0;
+  let matchedTokens = [];
+  
+  messageTokens.forEach(token => {
+    if (searchable.includes(token)) {
+      score += token.length; // Longer matches = stronger signal
+      matchedTokens.push(token);
+    }
+  });
+  
+  // Exact product name match boosts score significantly
+  if (row.json.product && userMessage.includes(row.json.product.toLowerCase())) {
+    score *= 2;
+  }
+  
+  return { row: row.json, score, matchedTokens };
 }
 
-const scored = allKnowledge
-  .map((row) => ({ row, score: scoreRow(row, keywords) }))
-  .filter((s) => s.score > 0)
+const scored = kbRows
+  .map(scoreRow)
+  .filter(s => s.score > 0)
   .sort((a, b) => b.score - a.score)
   .slice(0, 5);
 
-// Format as context for the AI
-const context = scored.length
-  ? scored.map((s) => `- ${s.row.json.product}: ${s.row.json.description} ($${s.row.json.price})`).join('\n')
+const retrievedContext = scored.length > 0
+  ? scored.map(s => `Product: ${s.row.product}\nDescription: ${s.row.description}\nPrice: ${s.row.price}\nURL: ${s.row.url}`).join('\n---\n')
   : 'No matching products found in knowledge base.';
 
 return [{
   json: {
-    user_message: $('Webhook').first().json.message,
-    retrieved_context: context,
+    retrieved_context: retrievedContext,
     retrieved_count: scored.length,
+    retrieved_products: scored.map(s => ({ product: s.row.product, url: s.row.url })),
   },
 }];
 ```
@@ -51,178 +69,184 @@ return [{
 
 ## 2. Retrieval-Grounded Response Generation
 
-The AI is explicitly instructed to ONLY answer from the retrieved context. Anything outside that = "I don't know, let me connect you with our team."
+Node: **Claude Response** (HTTP Request → `https://api.anthropic.com/v1/messages`). The model is explicitly instructed to answer only from the retrieved context; anything outside it gets a hand-off to the team.
 
-```javascript
-// n8n OpenAI/Claude Node — Grounded Response Generator
+Request body (`{{ }}` placeholders are n8n expressions):
 
-const systemPrompt = `You are Hostzera's AI sales and support assistant.
+```json
+{
+  "model": "claude-3-5-sonnet-20241022",
+  "max_tokens": 800,
+  "temperature": 0.3,
+  "system": "<system prompt below>",
+  "messages": [
+    {
+      "role": "user",
+      "content": "{{ $('Validate Request').item.json.message }}"
+    }
+  ]
+}
+```
+
+System prompt:
+
+```text
+You are Hostzera's AI sales and support assistant.
 
 CRITICAL RULES:
-1. Answer ONLY using the information in the "Retrieved Context" below.
-2. If the user asks something not covered by the context, respond with:
-   "Great question — let me connect you with our team for an accurate answer."
+1. Answer ONLY using the information in the Retrieved Context below.
+2. If the user asks something not covered by the context, respond with: 'Great question — let me connect you with our team for an accurate answer.'
 3. Never invent prices, plans, features, or specifications.
-4. Reply in the same language the user used.
-5. Be friendly but concise.
+4. Reply in {{ $('Detect Language & Format History').item.json.language_name }}.
+5. Be friendly, concise, and helpful.
+6. When mentioning a product, you may include its URL inline using markdown.
 
 Retrieved Context:
-${$('KB Retrieval').first().json.retrieved_context}
+{{ $('KB Retrieval & Scoring').item.json.retrieved_context }}
 
-Conversation history (last 5 turns):
-${$('Conversation History').first().json.history || 'No prior conversation.'}`;
-
-const userMessage = $('Webhook').first().json.message;
-
-return [{
-  json: {
-    model: 'claude-3-5-sonnet-20241022',
-    system: systemPrompt,
-    messages: [{ role: 'user', content: userMessage }],
-    max_tokens: 500,
-    temperature: 0.3,
-  },
-}];
+Recent conversation (last 10 turns):
+{{ $('Detect Language & Format History').item.json.history_formatted }}
 ```
+
+Headers: `x-api-key` (from `$env.ANTHROPIC_API_KEY`), `anthropic-version: 2023-06-01`. Node settings: 15 s timeout, retry on failure (3 attempts, 1.5 s apart).
 
 ---
 
-## 3. Page Link Auto-Insertion
+## 3. Product Link Enrichment
 
-When the AI mentions a product/service, the response is post-processed to add direct links to the relevant product pages.
+Node: **Enrich with Links** (Code). Extracts the response text, then links the first mention of each *retrieved* product to its URL, skipping products the model already linked. Token usage is passed through for logging.
 
 ```javascript
-// n8n Code Node — Link Enrichment
+// Extract response text + enrich with auto-links
+const claudeResponse = $input.first().json;
+let responseText = claudeResponse.content?.[0]?.text || '';
 
-const aiResponse = $('AI Response').first().json.content;
-const knowledgeBase = $('Get Knowledge Base').all();
+const retrievedProducts = $('KB Retrieval & Scoring').item.json.retrieved_products || [];
 
-let enrichedResponse = aiResponse;
-
-// For each product in the KB, check if it's mentioned and link it
-knowledgeBase.forEach((row) => {
-  const productName = row.json.product;
-  const productUrl = row.json.url;
+// Add markdown links for any product name not already linked
+let linksAdded = 0;
+retrievedProducts.forEach(({ product, url }) => {
+  if (!product || !url) return;
   
-  if (!productName || !productUrl) return;
+  // Check if product name appears in response but isn't already a link
+  const escapedName = product.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const linkRegex = new RegExp(`\\[[^\\]]*${escapedName}[^\\]]*\\]`, 'i');
+  if (linkRegex.test(responseText)) return; // Already linked
   
-  // Escape special regex chars in product name
-  const escapedName = productName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const regex = new RegExp(`\\b${escapedName}\\b`, 'gi');
-  
-  // Only link the first occurrence to avoid spam
-  let linked = false;
-  enrichedResponse = enrichedResponse.replace(regex, (match) => {
-    if (linked) return match;
-    linked = true;
-    return `[${match}](${productUrl})`;
-  });
+  const nameRegex = new RegExp(`\\b${escapedName}\\b`, 'i');
+  if (nameRegex.test(responseText)) {
+    responseText = responseText.replace(nameRegex, (match) => {
+      linksAdded++;
+      return `[${match}](${url})`;
+    });
+  }
 });
 
 return [{
   json: {
-    response: enrichedResponse,
-    original_response: aiResponse,
-    links_added: (enrichedResponse.match(/\[.*?\]\(.*?\)/g) || []).length,
+    response_text: responseText,
+    links_added: linksAdded,
+    model_used: 'claude-3-5-sonnet-20241022',
+    tokens_used: claudeResponse.usage?.output_tokens || 0,
+    input_tokens: claudeResponse.usage?.input_tokens || 0,
   },
 }];
 ```
 
 ---
 
-## 4. Conversation Memory Management
+## 4. Conversation Memory and Language Detection
 
-Conversations need context across turns, but storing infinite history is expensive. This implements a sliding window approach.
-
-```javascript
-// n8n Code Node — Conversation Memory Management
-
-const MAX_TURNS = 10;
-const SUMMARIZE_AFTER = 8;
-
-const session_id = $('Webhook').first().json.session_id;
-const allMessages = $('Get Session Messages').all();
-
-// Get last N messages
-const recentMessages = allMessages.slice(-MAX_TURNS).map((m) => ({
-  role: m.json.role,
-  content: m.json.content,
-  timestamp: m.json.timestamp,
-}));
-
-// If conversation is getting long, create a summary
-let summary = null;
-if (allMessages.length > SUMMARIZE_AFTER) {
-  const older = allMessages.slice(0, -MAX_TURNS);
-  summary = `Earlier in conversation (summary): User asked about ${older
-    .filter((m) => m.json.role === 'user')
-    .map((m) => extractTopic(m.json.content))
-    .filter((t) => t)
-    .join(', ')}`;
-}
-
-function extractTopic(text) {
-  // Simple topic extraction — first noun-phrase-ish chunk
-  const cleaned = text.toLowerCase().replace(/[^\w\s]/g, '');
-  const words = cleaned.split(/\s+/).filter((w) => w.length > 3);
-  return words.slice(0, 3).join(' ');
-}
-
-return [{
-  json: {
-    session_id,
-    history: recentMessages,
-    summary,
-    total_turns: allMessages.length,
-  },
-}];
-```
-
----
-
-## 5. Multi-Language Detection and Handling
-
-Hostzera serves international customers. Language detection routes responses appropriately.
+Node: **Detect Language & Format History** (Code). Session history is read from the Conversations sheet by `session_id`; a sliding window of the last 10 turns keeps context useful and prompt cost bounded. Language is detected by Unicode range and passed to the system prompt.
 
 ```javascript
-// n8n Code Node — Language Detection
+// Language detection + history formatting
+const message = $('Validate Request').item.json.message;
+const historyRows = $('Get Session History').all();
 
-const userMessage = $('Webhook').first().json.message;
+// Language detection
+let language = 'en';
+if (/[\u0600-\u06FF]/.test(message)) language = 'ar';
+else if (/[\u0400-\u04FF]/.test(message)) language = 'ru';
+else if (/[\u4E00-\u9FFF]/.test(message)) language = 'zh';
 
-function detectLanguage(text) {
-  // Arabic detection (Unicode range)
-  const arabicRegex = /[؀-ۿ]/;
-  // Cyrillic detection
-  const cyrillicRegex = /[Ѐ-ӿ]/;
-  // CJK detection
-  const cjkRegex = /[一-鿿]/;
-  
-  if (arabicRegex.test(text)) return 'ar';
-  if (cyrillicRegex.test(text)) return 'ru';
-  if (cjkRegex.test(text)) return 'zh';
-  
-  // Default to English for Latin scripts
-  // Could add French/Spanish detection via common words if needed
-  return 'en';
-}
+// Format recent history (last 10 turns)
+const recentHistory = historyRows
+  .slice(-10)
+  .map(r => ({
+    role: r.json.direction === 'inbound' ? 'user' : 'assistant',
+    content: r.json.direction === 'inbound' ? r.json.user_message : r.json.ai_response,
+  }))
+  .filter(m => m.content);
 
-const language = detectLanguage(userMessage);
+const languageNames = { en: 'English', ar: 'Arabic', ru: 'Russian', zh: 'Chinese' };
 
 return [{
   json: {
     detected_language: language,
-    original_message: userMessage,
-    instruction: `Respond in ${language === 'ar' ? 'Arabic' : language === 'ru' ? 'Russian' : language === 'zh' ? 'Chinese' : 'English'}.`,
+    language_name: languageNames[language],
+    history: recentHistory,
+    history_formatted: recentHistory.map(m => `${m.role}: ${m.content}`).join('\n'),
+    total_turns: historyRows.length,
   },
 }];
+```
+
+---
+
+## 5. Request Validation and Widget Response
+
+Node: **Validate Request** (Code). Rejects malformed payloads and oversized messages before any API call is made.
+
+```javascript
+// Validate incoming payload from chat widget
+const body = $input.first().json.body;
+
+if (!body.message || typeof body.message !== 'string') {
+  throw new Error('Missing or invalid message field');
+}
+if (!body.session_id) {
+  throw new Error('Missing session_id');
+}
+
+// Input guard: cap message length before it reaches the LLM
+const MAX_MESSAGE_LENGTH = 1000;
+if (body.message.length > MAX_MESSAGE_LENGTH) {
+  throw new Error(`Message exceeds ${MAX_MESSAGE_LENGTH} characters`);
+}
+
+return [{
+  json: {
+    session_id: body.session_id,
+    message: body.message.trim(),
+    visitor_ip: $input.first().json.headers['x-forwarded-for'] || 'unknown',
+    user_agent: $input.first().json.headers['user-agent'] || 'unknown',
+    received_at: new Date().toISOString(),
+  },
+}];
+```
+
+Node: **Return to Widget** (Respond to Webhook). The widget receives the reply plus metadata used for analytics:
+
+```text
+{
+  "reply": "{{ $('Enrich with Links').item.json.response_text.replace(/"/g, '\\"').replace(/\n/g, '\\n') }}",
+  "session_id": "{{ $('Validate Request').item.json.session_id }}",
+  "meta": {
+    "language": "{{ $('Detect Language & Format History').item.json.detected_language }}",
+    "kb_matches": {{ $('KB Retrieval & Scoring').item.json.retrieved_count }},
+    "model": "{{ $('Enrich with Links').item.json.model_used }}"
+  }
+}
 ```
 
 ---
 
 ## Design principles demonstrated
 
-1. **Retrieval before generation** — AI only answers from verified data
-2. **Explicit refusal patterns** — "I don't know" is a valid response
-3. **Post-processing for value** — link enrichment after generation
-4. **Sliding window memory** — context without unbounded cost
-5. **Language-aware routing** — global customer support without translation services
+1. **Retrieval before generation** — the model only sees verified KB rows
+2. **Explicit refusal patterns** — "let me connect you with our team" is a valid, expected response
+3. **Post-processing for value** — link enrichment after generation, limited to retrieved products
+4. **Sliding window memory** — last 10 turns, so context does not grow without bound
+5. **Language-aware prompting** — multi-language support without a separate translation service
+6. **Fail fast on bad input** — validation before any paid API call

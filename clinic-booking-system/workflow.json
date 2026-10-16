@@ -3,16 +3,19 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## Clinic AI Receptionist\n\n**Channels:** WhatsApp, Instagram, Messenger, Telegram\n**Stack:** n8n + OpenAI + Google Sheets + Google Calendar\n\n### Design principle\nAI handles language. Code handles math.\n\n### Flow\n1. Multi-channel webhook receives messages\n2. Normalize payload to unified schema\n3. Classify intent (cheap GPT-4o-mini call)\n4. Branch by intent: booking / FAQ / cancellation / other\n5. For booking: extract details → check calendar → confirm slot\n6. Send reply in original channel\n7. Schedule reminders (24h, 2h)\n8. Log everything to Sheets",
+        "content": "## Clinic AI Receptionist\n\n**Channels:** WhatsApp, Instagram, Messenger, Telegram\n**Stack:** n8n + OpenAI (gpt-4o / gpt-4o-mini) + Google Sheets + Google Calendar\n\n### Design principle\nAI handles language. Code handles math.\n\n### Flow\n1. Single webhook receives all four channels\n2. Normalize payload to one schema; log inbound to Sheets\n3. Classify intent (gpt-4o-mini, temperature 0, 10 tokens)\n4. Booking / confirmation: extract details (gpt-4o, JSON) -> read calendar -> compute free slots in code -> reply (gpt-4o)\n5. Greeting / FAQ / cancellation: short reply (gpt-4o-mini)\n6. Complaint / other: switch fallback, no auto-reply (left for staff)\n7. Reply in the originating channel; log outbound to Sheets\n\nChannel tokens are read from $env inside Send Reply via API only - never written to item data.",
         "height": 380,
         "width": 380,
         "color": 7
       },
-      "id": "a8e3f2b1-1c4d-4f6a-9b2e-7c8d9e0f1a2b",
+      "id": "37aacff9-e86d-468a-a195-978eeb1fd11b",
       "name": "📘 Workflow Overview",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [-200, 80]
+      "position": [
+        -200,
+        80
+      ]
     },
     {
       "parameters": {
@@ -23,27 +26,36 @@
           "rawBody": true,
           "responseHeaders": {
             "entries": [
-              { "name": "Content-Type", "value": "application/json" }
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
             ]
           }
         }
       },
-      "id": "b9f4e3c2-2d5e-5g7b-0c3f-8d9e0f1a2b3c",
+      "id": "2438d14a-1a8f-4dc5-8034-538c18dd61f8",
       "name": "Multi-Channel Webhook",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
-      "position": [240, 400],
-      "webhookId": "clinic-receptionist-webhook"
+      "position": [
+        240,
+        400
+      ],
+      "webhookId": "318e5bee-0489-4fd0-8e9c-a54d11257124"
     },
     {
       "parameters": {
         "jsCode": "// Multi-channel payload normalizer\n// Detects source channel and converts to unified schema\n\nconst raw = $input.first().json;\nlet channel, normalized;\n\n// WhatsApp Business API detection\nif (raw.entry?.[0]?.changes?.[0]?.value?.messages?.[0]) {\n  channel = 'whatsapp';\n  const msg = raw.entry[0].changes[0].value.messages[0];\n  const contact = raw.entry[0].changes[0].value.contacts?.[0];\n  normalized = {\n    user_id: msg.from,\n    user_name: contact?.profile?.name || 'Unknown',\n    message_text: msg.text?.body || msg.button?.text || '',\n    message_type: msg.type,\n    message_id: msg.id,\n    timestamp: msg.timestamp,\n  };\n}\n// Instagram / Messenger (same Meta payload structure)\nelse if (raw.object === 'instagram' || raw.object === 'page') {\n  channel = raw.object === 'instagram' ? 'instagram' : 'messenger';\n  const event = raw.entry[0].messaging[0];\n  normalized = {\n    user_id: event.sender.id,\n    user_name: null,\n    message_text: event.message?.text || event.postback?.title || '',\n    message_type: event.message ? 'text' : 'postback',\n    message_id: event.message?.mid || `pb_${event.timestamp}`,\n    timestamp: Math.floor(event.timestamp / 1000),\n  };\n}\n// Telegram Bot API\nelse if (raw.message?.chat) {\n  channel = 'telegram';\n  const msg = raw.message;\n  normalized = {\n    user_id: String(msg.from.id),\n    user_name: `${msg.from.first_name || ''} ${msg.from.last_name || ''}`.trim(),\n    message_text: msg.text || '',\n    message_type: msg.text ? 'text' : 'other',\n    message_id: String(msg.message_id),\n    timestamp: msg.date,\n  };\n}\nelse {\n  throw new Error(`Unsupported channel payload. Keys: ${Object.keys(raw).join(', ')}`);\n}\n\nreturn [{\n  json: {\n    channel,\n    ...normalized,\n    received_at: new Date().toISOString(),\n    raw_payload_excerpt: JSON.stringify(raw).slice(0, 500),\n  },\n}];"
       },
-      "id": "c0a5d4e3-3e6f-6h8c-1d4g-9e0f1a2b3c4d",
+      "id": "4c446593-6bb2-46dc-bfb4-091a734fcf69",
       "name": "Normalize Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [460, 400]
+      "position": [
+        460,
+        400
+      ]
     },
     {
       "parameters": {
@@ -72,23 +84,85 @@
           },
           "matchingColumns": [],
           "schema": [
-            { "id": "timestamp", "displayName": "timestamp", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "user_id", "displayName": "user_id", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "user_name", "displayName": "user_name", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "channel", "displayName": "channel", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "direction", "displayName": "direction", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "message_text", "displayName": "message_text", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "intent", "displayName": "intent", "required": false, "defaultMatch": false, "display": true, "type": "string" },
-            { "id": "status", "displayName": "status", "required": false, "defaultMatch": false, "display": true, "type": "string" }
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "user_id",
+              "displayName": "user_id",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "user_name",
+              "displayName": "user_name",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "channel",
+              "displayName": "channel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "direction",
+              "displayName": "direction",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "message_text",
+              "displayName": "message_text",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "intent",
+              "displayName": "intent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string"
+            }
           ]
         },
         "options": {}
       },
-      "id": "d1b6e5f4-4f7g-7i9d-2e5h-0f1a2b3c4d5e",
+      "id": "c273abb2-275d-4bc7-9567-8f7b98f59089",
       "name": "Log Inbound to Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 280],
+      "position": [
+        680,
+        280
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_SHEETS_CREDENTIAL_ID",
@@ -110,15 +184,21 @@
           "value": "Conversations"
         },
         "lookupColumn": "user_id",
-        "lookupValue": "={{ $('Normalize Payload').item.json.user_id }}",
+        "lookupValue": "={{ $('Normalize Payload').first().json.user_id }}",
         "returnAllMatches": true,
         "options": {}
       },
-      "id": "e2c7f6g5-5g8h-8j0e-3f6i-1a2b3c4d5e6f",
+      "id": "4f42d940-d8a4-4c4a-aa4d-f8445a26b0b9",
       "name": "Get Conversation History",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [680, 520],
+      "position": [
+        680,
+        520
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_SHEETS_CREDENTIAL_ID",
@@ -141,7 +221,7 @@
             },
             {
               "role": "user",
-              "content": "={{ $('Normalize Payload').item.json.message_text }}"
+              "content": "={{ $('Normalize Payload').first().json.message_text }}"
             }
           ]
         },
@@ -150,11 +230,18 @@
           "maxTokens": 10
         }
       },
-      "id": "f3d8g7h6-6h9i-9k1f-4g7j-2b3c4d5e6f7g",
+      "id": "1ffd56cb-c56f-46cb-8d79-9c5f8042149f",
       "name": "Classify Intent",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [900, 400],
+      "position": [
+        900,
+        400
+      ],
+      "executeOnce": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "openAiApi": {
           "id": "REPLACE_OPENAI_CREDENTIAL_ID",
@@ -168,12 +255,18 @@
           "values": [
             {
               "conditions": {
-                "options": { "caseSensitive": false, "typeValidation": "strict" },
+                "options": {
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
                 "conditions": [
                   {
                     "leftValue": "={{ $json.message.content }}",
                     "rightValue": "BOOKING_REQUEST",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -183,12 +276,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "typeValidation": "strict" },
+                "options": {
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
                 "conditions": [
                   {
                     "leftValue": "={{ $json.message.content }}",
                     "rightValue": "CONFIRMATION",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -198,12 +297,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "typeValidation": "strict" },
+                "options": {
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
                 "conditions": [
                   {
                     "leftValue": "={{ $json.message.content }}",
                     "rightValue": "FAQ",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -213,12 +318,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "typeValidation": "strict" },
+                "options": {
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
                 "conditions": [
                   {
                     "leftValue": "={{ $json.message.content }}",
                     "rightValue": "CANCELLATION",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -228,12 +339,18 @@
             },
             {
               "conditions": {
-                "options": { "caseSensitive": false, "typeValidation": "strict" },
+                "options": {
+                  "caseSensitive": false,
+                  "typeValidation": "strict"
+                },
                 "conditions": [
                   {
                     "leftValue": "={{ $json.message.content }}",
                     "rightValue": "GREETING",
-                    "operator": { "type": "string", "operation": "equals" }
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
                   }
                 ],
                 "combinator": "and"
@@ -247,11 +364,14 @@
           "fallbackOutput": "extra"
         }
       },
-      "id": "g4e9h8i7-7i0j-0l2g-5h8k-3c4d5e6f7g8h",
+      "id": "b45ab81f-6b54-43b2-adc7-3254309bca81",
       "name": "Route by Intent",
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
-      "position": [1140, 400]
+      "position": [
+        1140,
+        400
+      ]
     },
     {
       "parameters": {
@@ -264,11 +384,11 @@
           "values": [
             {
               "role": "system",
-              "content": "Extract booking details from the patient's message. Return JSON only.\n\nRequired fields:\n- name: string or null (patient's name if mentioned)\n- phone: string or null (digits only, no formatting)\n- service: one of [Cleaning, Filling, Root Canal, Extraction, Whitening, Consultation, Emergency, Other] or null\n- preferred_date: ISO 8601 date (YYYY-MM-DD) or null\n- preferred_time: 24-hour time (HH:MM) or null\n- urgency: one of [low, medium, high]\n\nToday's date: {{ $now.toFormat('yyyy-MM-dd') }}\nTimezone: Africa/Cairo\n\nIf the patient says \"tomorrow\" or \"next Tuesday\", convert to absolute ISO date.\nIf time is vague (\"afternoon\"), use null and let the conversation continue.\nDo not guess fields not stated.\nReturn ONLY valid JSON, no markdown."
+              "content": "=Extract booking details from the patient's message. Return JSON only.\n\nRequired fields:\n- name: string or null (patient's name if mentioned)\n- phone: string or null (digits only, no formatting)\n- service: one of [Cleaning, Filling, Root Canal, Extraction, Whitening, Consultation, Emergency, Other] or null\n- preferred_date: ISO 8601 date (YYYY-MM-DD) or null\n- preferred_time: 24-hour time (HH:MM) or null\n- urgency: one of [low, medium, high]\n\nToday's date: {{ $now.toFormat('yyyy-MM-dd') }}\nTimezone: Africa/Cairo\n\nIf the patient says \"tomorrow\" or \"next Tuesday\", convert to absolute ISO date.\nIf time is vague (\"afternoon\"), use null and let the conversation continue.\nDo not guess fields not stated.\nReturn ONLY valid JSON, no markdown."
             },
             {
               "role": "user",
-              "content": "=Recent conversation history:\n{{ $('Get Conversation History').all().slice(-5).map(m => `${m.json.direction}: ${m.json.message_text}`).join('\\n') }}\n\nLatest message: {{ $('Normalize Payload').item.json.message_text }}"
+              "content": "=Recent conversation history:\n{{ $('Get Conversation History').all().slice(-5).map(m => `${m.json.direction}: ${m.json.message_text}`).join('\\n') }}\n\nLatest message: {{ $('Normalize Payload').first().json.message_text }}"
             }
           ]
         },
@@ -277,11 +397,17 @@
           "responseFormat": "json_object"
         }
       },
-      "id": "h5f0i9j8-8j1k-1m3h-6i9l-4d5e6f7g8h9i",
+      "id": "490e8019-a771-4fc7-a5db-18c2f8eaa809",
       "name": "Extract Booking Details",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [1380, 240],
+      "position": [
+        1380,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "openAiApi": {
           "id": "REPLACE_OPENAI_CREDENTIAL_ID",
@@ -306,11 +432,17 @@
           "orderBy": "startTime"
         }
       },
-      "id": "i6g1j0k9-9k2l-2n4i-7j0m-5e6f7g8h9i0j",
+      "id": "d95e2e93-a319-4f2c-a887-d03d6d227ed6",
       "name": "Get Calendar Events",
       "type": "n8n-nodes-base.googleCalendar",
       "typeVersion": 1.3,
-      "position": [1600, 240],
+      "position": [
+        1600,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "googleCalendarOAuth2Api": {
           "id": "REPLACE_CALENDAR_CREDENTIAL_ID",
@@ -322,11 +454,14 @@
       "parameters": {
         "jsCode": "// Deterministic calendar availability check\n// AI extracted preferences - code verifies actual availability\n// THIS IS WHERE 'CODE HANDLES MATH' MATTERS MOST\n\nconst extracted = JSON.parse($('Extract Booking Details').first().json.message.content);\nconst calendarEvents = $('Get Calendar Events').all().map(e => e.json);\n\n// Business configuration\nconst BUSINESS_HOURS = { start: 9, end: 19 }; // 9am-7pm\nconst SLOT_DURATION_MIN = 30;\nconst BUFFER_MIN = 15;\nconst TIMEZONE_OFFSET_HOURS = 2; // Cairo GMT+2\n\nfunction getSlotsForDate(dateISO) {\n  const date = new Date(dateISO + 'T00:00:00');\n  const slots = [];\n  \n  // Skip Fridays (clinic closed)\n  if (date.getDay() === 5) return slots;\n  \n  for (let hour = BUSINESS_HOURS.start; hour < BUSINESS_HOURS.end; hour++) {\n    for (let min = 0; min < 60; min += SLOT_DURATION_MIN) {\n      const slotStart = new Date(date);\n      slotStart.setHours(hour, min, 0, 0);\n      const slotEnd = new Date(slotStart.getTime() + SLOT_DURATION_MIN * 60000);\n      \n      // Skip past slots (allow 30 min lead time minimum)\n      if (slotStart < new Date(Date.now() + 30 * 60000)) continue;\n      \n      slots.push({ start: slotStart, end: slotEnd });\n    }\n  }\n  return slots;\n}\n\nfunction isSlotFree(slot, events) {\n  return !events.some(event => {\n    const eventStart = new Date(event.start.dateTime || event.start.date).getTime() - BUFFER_MIN * 60000;\n    const eventEnd = new Date(event.end.dateTime || event.end.date).getTime() + BUFFER_MIN * 60000;\n    return slot.start.getTime() < eventEnd && slot.end.getTime() > eventStart;\n  });\n}\n\n// Find slots for requested date OR next available dates\nconst targetDate = extracted.preferred_date || $now.toFormat('yyyy-MM-dd');\nlet freeSlots = [];\n\n// Check requested date first, then expand window if needed\nfor (let dayOffset = 0; dayOffset < 7; dayOffset++) {\n  const checkDate = new Date(targetDate + 'T00:00:00');\n  checkDate.setDate(checkDate.getDate() + dayOffset);\n  const dateStr = checkDate.toISOString().slice(0, 10);\n  \n  const daySlots = getSlotsForDate(dateStr).filter(s => isSlotFree(s, calendarEvents));\n  freeSlots.push(...daySlots);\n  \n  if (freeSlots.length >= 5) break;\n}\n\n// Sort by preferred_time proximity if specified\nlet recommended = freeSlots.slice(0, 3);\nif (extracted.preferred_time) {\n  const [prefH, prefM] = extracted.preferred_time.split(':').map(Number);\n  const prefMinutes = prefH * 60 + prefM;\n  \n  recommended = freeSlots\n    .map(slot => ({\n      ...slot,\n      diff: Math.abs(slot.start.getHours() * 60 + slot.start.getMinutes() - prefMinutes),\n    }))\n    .sort((a, b) => a.diff - b.diff)\n    .slice(0, 3);\n}\n\nreturn [{\n  json: {\n    extracted_details: extracted,\n    requested_date: targetDate,\n    requested_time: extracted.preferred_time,\n    has_availability: recommended.length > 0,\n    suggested_slots: recommended.map(s => ({\n      start_iso: s.start.toISOString(),\n      end_iso: s.end.toISOString(),\n      display: s.start.toLocaleString('en-US', {\n        weekday: 'long',\n        month: 'short',\n        day: 'numeric',\n        hour: 'numeric',\n        minute: '2-digit',\n        hour12: true,\n        timeZone: 'Africa/Cairo',\n      }),\n    })),\n  },\n}];"
       },
-      "id": "j7h2k1l0-0l3m-3o5j-8k1n-6f7g8h9i0j1k",
+      "id": "f8b415ab-cf1d-4c0d-b65c-d89b61e03bde",
       "name": "Calculate Availability",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1820, 240]
+      "position": [
+        1820,
+        240
+      ]
     },
     {
       "parameters": {
@@ -343,7 +478,7 @@
             },
             {
               "role": "user",
-              "content": "=Extracted details: {{ JSON.stringify($json.extracted_details) }}\nAvailable slots: {{ JSON.stringify($json.suggested_slots) }}\nOriginal message: {{ $('Normalize Payload').item.json.message_text }}"
+              "content": "=Extracted details: {{ JSON.stringify($json.extracted_details) }}\nAvailable slots: {{ JSON.stringify($json.suggested_slots) }}\nOriginal message: {{ $('Normalize Payload').first().json.message_text }}"
             }
           ]
         },
@@ -351,11 +486,17 @@
           "temperature": 0.4
         }
       },
-      "id": "k8i3l2m1-1m4n-4p6k-9l2o-7g8h9i0j1k2l",
+      "id": "8dc8936f-dfc0-4383-8f3c-e86c5b51ccbf",
       "name": "Generate Booking Reply",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [2040, 240],
+      "position": [
+        2040,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "openAiApi": {
           "id": "REPLACE_OPENAI_CREDENTIAL_ID",
@@ -365,41 +506,49 @@
     },
     {
       "parameters": {
-        "jsCode": "// Channel-specific message dispatcher\n// Routes the AI reply back through the SAME channel the user used\n\nconst replyText = $input.first().json.message.content;\nconst channel = $('Normalize Payload').item.json.channel;\nconst userId = $('Normalize Payload').item.json.user_id;\n\nconst payloads = {\n  whatsapp: {\n    url: `https://graph.facebook.com/v18.0/${$env.WHATSAPP_PHONE_NUMBER_ID}/messages`,\n    method: 'POST',\n    headers: { Authorization: `Bearer ${$env.WHATSAPP_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },\n    body: {\n      messaging_product: 'whatsapp',\n      to: userId,\n      type: 'text',\n      text: { body: replyText },\n    },\n  },\n  instagram: {\n    url: `https://graph.facebook.com/v18.0/me/messages`,\n    method: 'POST',\n    headers: { Authorization: `Bearer ${$env.IG_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },\n    body: {\n      recipient: { id: userId },\n      message: { text: replyText },\n    },\n  },\n  messenger: {\n    url: `https://graph.facebook.com/v18.0/me/messages`,\n    method: 'POST',\n    headers: { Authorization: `Bearer ${$env.FB_PAGE_ACCESS_TOKEN}`, 'Content-Type': 'application/json' },\n    body: {\n      recipient: { id: userId },\n      messaging_type: 'RESPONSE',\n      message: { text: replyText },\n    },\n  },\n  telegram: {\n    url: `https://api.telegram.org/bot${$env.TELEGRAM_BOT_TOKEN}/sendMessage`,\n    method: 'POST',\n    headers: { 'Content-Type': 'application/json' },\n    body: {\n      chat_id: userId,\n      text: replyText,\n      parse_mode: 'Markdown',\n    },\n  },\n};\n\nconst dispatchConfig = payloads[channel];\nif (!dispatchConfig) {\n  throw new Error(`Unknown channel for dispatch: ${channel}`);\n}\n\nreturn [{\n  json: {\n    channel,\n    user_id: userId,\n    reply_text: replyText,\n    dispatch_url: dispatchConfig.url,\n    dispatch_method: dispatchConfig.method,\n    dispatch_headers: dispatchConfig.headers,\n    dispatch_body: dispatchConfig.body,\n  },\n}];"
+        "jsCode": "// Channel-specific reply builder\n// Routes the AI reply back through the SAME channel the user used.\n//\n// Security: this node never reads or emits access tokens. The endpoint URL and\n// Authorization header are resolved from $env inside \"Send Reply via API\", so\n// secrets never enter item data and never appear in n8n execution logs.\n\nconst replyText = $input.first().json.message.content;\nconst { channel, user_id: userId } = $('Normalize Payload').first().json;\n\nconst bodies = {\n  whatsapp: {\n    messaging_product: 'whatsapp',\n    to: userId,\n    type: 'text',\n    text: { body: replyText },\n  },\n  instagram: {\n    recipient: { id: userId },\n    message: { text: replyText },\n  },\n  messenger: {\n    recipient: { id: userId },\n    messaging_type: 'RESPONSE',\n    message: { text: replyText },\n  },\n  telegram: {\n    chat_id: userId,\n    text: replyText,\n    parse_mode: 'Markdown',\n  },\n};\n\nconst dispatchBody = bodies[channel];\nif (!dispatchBody) {\n  throw new Error(`Unknown channel for dispatch: ${channel}`);\n}\n\nreturn [{\n  json: {\n    channel,\n    user_id: userId,\n    reply_text: replyText,\n    dispatch_body: dispatchBody,\n  },\n}];"
       },
-      "id": "l9j4m3n2-2n5o-5q7l-0m3p-8h9i0j1k2l3m",
+      "id": "50017919-514e-4af9-a2e1-29ae38483daf",
       "name": "Build Channel Reply",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [2260, 240]
+      "position": [
+        2260,
+        240
+      ]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.dispatch_url }}",
+        "url": "={{ $json.channel === 'whatsapp' ? 'https://graph.facebook.com/v18.0/' + $env.WHATSAPP_PHONE_NUMBER_ID + '/messages' : $json.channel === 'telegram' ? 'https://api.telegram.org/bot' + $env.TELEGRAM_BOT_TOKEN + '/sendMessage' : 'https://graph.facebook.com/v18.0/me/messages' }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
-            { "name": "Authorization", "value": "={{ $json.dispatch_headers.Authorization }}" },
-            { "name": "Content-Type", "value": "application/json" }
+            {
+              "name": "Authorization",
+              "value": "={{ $json.channel === 'whatsapp' ? 'Bearer ' + $env.WHATSAPP_ACCESS_TOKEN : $json.channel === 'instagram' ? 'Bearer ' + $env.IG_ACCESS_TOKEN : $json.channel === 'messenger' ? 'Bearer ' + $env.FB_PAGE_ACCESS_TOKEN : '' }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
           ]
         },
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{ JSON.stringify($json.dispatch_body) }}",
         "options": {
-          "retry": {
-            "maxRetries": 3,
-            "waitBetweenRetries": 2000
-          },
           "timeout": 10000
         }
       },
-      "id": "m0k5n4o3-3o6p-6r8m-1n4q-9i0j1k2l3m4n",
+      "id": "31ff405a-67ab-4a8c-a1bd-b56fa4201f8f",
       "name": "Send Reply via API",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [2480, 240]
+      "position": [
+        2480,
+        240
+      ]
     },
     {
       "parameters": {
@@ -418,21 +567,27 @@
           "mappingMode": "defineBelow",
           "value": {
             "timestamp": "={{ $now.toISO() }}",
-            "user_id": "={{ $('Normalize Payload').item.json.user_id }}",
-            "user_name": "={{ $('Normalize Payload').item.json.user_name }}",
-            "channel": "={{ $('Normalize Payload').item.json.channel }}",
+            "user_id": "={{ $('Normalize Payload').first().json.user_id }}",
+            "user_name": "={{ $('Normalize Payload').first().json.user_name }}",
+            "channel": "={{ $('Normalize Payload').first().json.channel }}",
             "direction": "outbound",
-            "message_text": "={{ $('Build Channel Reply').item.json.reply_text }}",
-            "intent": "={{ $('Classify Intent').item.json.message.content }}",
+            "message_text": "={{ $('Build Channel Reply').first().json.reply_text }}",
+            "intent": "={{ $('Classify Intent').first().json.message.content }}",
             "status": "sent"
           }
         }
       },
-      "id": "n1l6o5p4-4p7q-7s9n-2o5r-0j1k2l3m4n5o",
+      "id": "33cc9b6d-1da9-4415-807b-1e197881d9e3",
       "name": "Log Outbound to Sheets",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
-      "position": [2700, 240],
+      "position": [
+        2700,
+        240
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
         "googleSheetsOAuth2Api": {
           "id": "REPLACE_SHEETS_CREDENTIAL_ID",
@@ -443,98 +598,253 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={\n  \"status\": \"ok\",\n  \"channel\": \"{{ $('Normalize Payload').item.json.channel }}\",\n  \"processed\": true\n}",
+        "responseBody": "={\n  \"status\": \"ok\",\n  \"channel\": \"{{ $('Normalize Payload').first().json.channel }}\",\n  \"processed\": true\n}",
         "options": {}
       },
-      "id": "o2m7p6q5-5q8r-8t0o-3p6s-1k2l3m4n5o6p",
+      "id": "66552cd6-cd17-4eeb-b514-16b4ed7feb37",
       "name": "Webhook Response",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [2920, 240]
+      "position": [
+        2920,
+        240
+      ]
     },
     {
       "parameters": {
-        "modelId": { "__rl": true, "mode": "list", "value": "gpt-4o-mini" },
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "gpt-4o-mini"
+        },
         "messages": {
           "values": [
-            { "role": "system", "content": "You are a friendly clinic receptionist. The user sent a greeting. Reply warmly in their language and offer to help with booking, FAQs, or other questions. Keep it under 30 words." },
-            { "role": "user", "content": "={{ $('Normalize Payload').item.json.message_text }}" }
+            {
+              "role": "system",
+              "content": "You are a friendly clinic receptionist. The user sent a greeting. Reply warmly in their language and offer to help with booking, FAQs, or other questions. Keep it under 30 words."
+            },
+            {
+              "role": "user",
+              "content": "={{ $('Normalize Payload').first().json.message_text }}"
+            }
           ]
         },
-        "options": { "temperature": 0.6 }
+        "options": {
+          "temperature": 0.6
+        }
       },
-      "id": "p3n8q7r6-6r9s-9u1p-4q7t-2l3m4n5o6p7q",
+      "id": "630ee40c-ba4e-42cd-96ac-660926222d2e",
       "name": "Generate Greeting Reply",
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.6,
-      "position": [1380, 580],
+      "position": [
+        1380,
+        580
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
       "credentials": {
-        "openAiApi": { "id": "REPLACE_OPENAI_CREDENTIAL_ID", "name": "OpenAI" }
+        "openAiApi": {
+          "id": "REPLACE_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI"
+        }
       }
     },
     {
       "parameters": {
-        "content": "## ⚠️ Error Handling\n\nThe Error Trigger workflow (separate) catches any failure in this workflow and:\n1. Sanitizes sensitive data\n2. Logs to Errors sheet\n3. Sends Slack alert with severity\n\nSee architecture.md for failure modes and recovery patterns.",
+        "content": "## ⚠️ Error Handling\n\n**Node level:** external API nodes retry 3 times, 2 s apart.\n\n**Workflow level:** settings.errorWorkflow points to the shared error handler, which:\n1. Sanitizes secrets and PII\n2. Logs to the Errors sheet\n3. Sends a Slack alert on high severity\n\nSee architecture.md for failure modes and recovery patterns.",
         "height": 220,
         "width": 380,
         "color": 4
       },
-      "id": "q4o9r8s7-7s0t-0v2q-5r8u-3m4n5o6p7q8r",
+      "id": "2e9f4711-1512-4fa4-878b-6fe91082d679",
       "name": "📌 Error Handling Note",
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
-      "position": [240, 760]
+      "position": [
+        240,
+        760
+      ]
     }
   ],
   "pinData": {},
   "connections": {
     "Multi-Channel Webhook": {
-      "main": [[{ "node": "Normalize Payload", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Normalize Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Normalize Payload": {
-      "main": [[
-        { "node": "Log Inbound to Sheets", "type": "main", "index": 0 },
-        { "node": "Get Conversation History", "type": "main", "index": 0 }
-      ]]
+      "main": [
+        [
+          {
+            "node": "Log Inbound to Sheets",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get Conversation History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Conversation History": {
-      "main": [[{ "node": "Classify Intent", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Classify Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Classify Intent": {
-      "main": [[{ "node": "Route by Intent", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Route by Intent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Route by Intent": {
       "main": [
-        [{ "node": "Extract Booking Details", "type": "main", "index": 0 }],
-        [{ "node": "Extract Booking Details", "type": "main", "index": 0 }],
-        [{ "node": "Generate Greeting Reply", "type": "main", "index": 0 }],
-        [{ "node": "Generate Greeting Reply", "type": "main", "index": 0 }],
-        [{ "node": "Generate Greeting Reply", "type": "main", "index": 0 }]
+        [
+          {
+            "node": "Extract Booking Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Booking Details",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Greeting Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Greeting Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Generate Greeting Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
       ]
     },
     "Extract Booking Details": {
-      "main": [[{ "node": "Get Calendar Events", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Get Calendar Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Get Calendar Events": {
-      "main": [[{ "node": "Calculate Availability", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Calculate Availability",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Calculate Availability": {
-      "main": [[{ "node": "Generate Booking Reply", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Generate Booking Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generate Booking Reply": {
-      "main": [[{ "node": "Build Channel Reply", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Channel Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Generate Greeting Reply": {
-      "main": [[{ "node": "Build Channel Reply", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Build Channel Reply",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Build Channel Reply": {
-      "main": [[{ "node": "Send Reply via API", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Send Reply via API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Send Reply via API": {
-      "main": [[{ "node": "Log Outbound to Sheets", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Log Outbound to Sheets",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     },
     "Log Outbound to Sheets": {
-      "main": [[{ "node": "Webhook Response", "type": "main", "index": 0 }]]
+      "main": [
+        [
+          {
+            "node": "Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
@@ -552,9 +862,21 @@
   },
   "id": "clinic-receptionist-v2",
   "tags": [
-    { "name": "healthcare", "id": "tag-healthcare" },
-    { "name": "multi-channel", "id": "tag-multichannel" },
-    { "name": "ai-receptionist", "id": "tag-ai-receptionist" },
-    { "name": "production", "id": "tag-production" }
+    {
+      "name": "healthcare",
+      "id": "tag-healthcare"
+    },
+    {
+      "name": "multi-channel",
+      "id": "tag-multichannel"
+    },
+    {
+      "name": "ai-receptionist",
+      "id": "tag-ai-receptionist"
+    },
+    {
+      "name": "production",
+      "id": "tag-production"
+    }
   ]
 }
