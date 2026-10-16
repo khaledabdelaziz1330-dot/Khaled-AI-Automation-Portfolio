@@ -30,6 +30,8 @@ The public systems below show the same engineering approach on work I can share.
 
 ## Featured systems
 
+Three AI agents — conversational, retrieval-grounded and autonomous — and two AI pipelines.
+
 ### Clinic AI Receptionist
 **n8n · OpenAI (gpt-4o, gpt-4o-mini) · Google Calendar · Google Sheets · Meta Graph API · Telegram**
 
@@ -51,6 +53,22 @@ Every visitor message is scored against a staff-editable knowledge base; only th
 **Impact:** ~0.5% hallucination rate measured on a 200-conversation audit · support tickets 35% → 12% · 1.5 s typical response · ~$0.018 per conversation.
 
 [README](./hostzera-chat-widget) · [Architecture](./hostzera-chat-widget/architecture.md) · [Performance](./hostzera-chat-widget/PERFORMANCE.md) · [Tests](./tests/hostzera.test.js)
+
+### Autonomous Engagement Agents — X & Instagram
+**n8n · AWS Bedrock · Apify · Unipile · Google Sheets · JavaScript**
+
+<table>
+  <tr>
+    <td width="50%"><a href="./x-engagement-system"><img src="./x-engagement-system/x-engagement-workflow.jpg" alt="X engagement agent workflow" width="100%"></a></td>
+    <td width="50%"><a href="./instagram-engagement-system"><img src="./instagram-engagement-system/instagram-engagement-workflow.jpg" alt="Instagram engagement agent workflow" width="100%"></a></td>
+  </tr>
+</table>
+
+Two agents that run a brand's engagement end to end with no human in the loop. Each discovers relevant posts, then **an AWS Bedrock classifier decides what is worth answering** — a topic / substance / fit test returned as structured JSON, failing closed and refusing memes, venting and tragedy posts. Replies are drafted in the brand's voice and pass hard guardrails before anything is posted: daily caps, one reply per author, active hours, a similarity check against recent replies, and a lock that prevents double-posting. A self-healing queue reclaims work interrupted by a crash, and repeated failures park for human review.
+
+**Impact (climate-tech brand, in production):** replaces ~1–2 hours a day of skilled engagement work · up to 24 expert replies a day on X · full Instagram lifecycle with zero manual steps.
+
+[X agent](./x-engagement-system) · [Instagram agent](./instagram-engagement-system)
 
 ### Document Automation — PDF to Excel
 **n8n · OpenAI (gpt-4o) · JavaScript · Gmail · Google Sheets**
@@ -92,7 +110,7 @@ The same engineering bar applies to every system, and it is **checked automatica
 
 ---
 
-## More production systems
+## More systems
 
 <table>
   <tr>
@@ -109,26 +127,9 @@ The same engineering bar applies to every system, and it is **checked automatica
   </tr>
   <tr>
     <td width="50%" valign="top">
-      <a href="./x-engagement-system"><img src="./x-engagement-system/x-engagement-workflow.jpg" alt="X engagement agent workflow" width="100%"></a><br>
-      <b><a href="./x-engagement-system">X Engagement Agent</a></b> · <sub>Ran unattended in production</sub><br>
-      <sub>For a climate-tech brand: LLM relevance vetting, caps and duplicate locks · up to <b>24</b> expert replies/day · replaces <b>~1–2 h/day</b> of skilled work</sub>
-    </td>
-    <td width="50%" valign="top">
-      <a href="./instagram-engagement-system"><img src="./instagram-engagement-system/instagram-engagement-workflow.jpg" alt="Instagram engagement agent workflow" width="100%"></a><br>
-      <b><a href="./instagram-engagement-system">Instagram Engagement Agent</a></b> · <sub>Production</sub><br>
-      <sub>Off-account discovery, LLM filtering and managed-API commenting · full lifecycle with <b>zero manual steps</b> · self-healing queue</sub>
-    </td>
-  </tr>
-</table>
-
-## Earlier builds
-
-<table>
-  <tr>
-    <td width="50%" valign="top">
       <a href="./holistic-wellness-club"><img src="./holistic-wellness-club/screenshots/photo_1_2026-02-20_08-16-52.jpg" alt="Wellness club GoHighLevel pipeline" width="100%"></a><br>
       <b><a href="./holistic-wellness-club">Wellness Club — GoHighLevel + n8n</a></b> · <sub>Built and tested in staging</sub><br>
-      <sub>Client journey in GoHighLevel (bookings, reminders, nurture, reviews) with an n8n event log that catches webhook retries</sub>
+      <sub>Full client journey in GoHighLevel — bookings, reminders, nurture, reviews — with an n8n event log that catches webhook retries</sub>
     </td>
     <td width="50%" valign="top">
       <a href="./marketing-lead-engine"><img src="./marketing-lead-engine/marketing-lead-engine-workflow.png" alt="Marketing content pipeline workflow" width="100%"></a><br>
